@@ -1,0 +1,29 @@
+services:
+  tp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tp-deploiement-ia:latest
+    # Nécessaire uniquement pour exposer /sys/class/powercap (énergie CPU RAPL).
+    # Mettre TP_CPU_ENERGY=0 et privileged: false si l'on ne veut pas de RAPL.
+    privileged: true
+    gpus: all
+    shm_size: "2gb"
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    environment:
+      TP_ROOT: /workspace
+      TP_UID: "1000"
+      TP_GID: "1000"
+      TP_CPU_ENERGY: "1"
+      HOME: /workspace/.home
+      TORCH_HOME: /workspace/.cache/torch
+      XDG_CACHE_HOME: /workspace/.cache
+      MPLCONFIGDIR: /workspace/.cache/matplotlib
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "4"
+      PYTHONUNBUFFERED: "1"
+    stdin_open: true
+    tty: true

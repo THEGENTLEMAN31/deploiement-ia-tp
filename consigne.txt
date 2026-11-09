@@ -1,0 +1,182 @@
+Objectif du TP
+
+L'objectif de ce TP est de comprendre, manipuler et comparer différentes chaînes de déploiement (deployment pipelines) d'un modèle d'intelligence artificielle, en étudiant l'impact des différentes couches logicielles sur les performances d'inférence.
+
+À partir d'un modèle pré-entraîné sous PyTorch, vous devrez mettre en place et exécuter plusieurs pipelines sur deux architectures matérielles :
+
+    CPU : exécution sur processeur.
+
+    GPU : exécution sur processeur graphique.
+
+Pour chaque architecture, vous étudierez deux pipelines distincts illustrant l'enchaînement des différentes couches logicielles présentées dans le cours :
+
+Haut niveau → Format du modèle → Middle Level → Bas niveau → Matériel
+
+Au total, vous devrez implémenter et comparer quatre pipelines de déploiement.
+ 
+I. Plateforme CPU : deux pipelines
+
+Pipeline CPU n°1 : PyTorch → ONNX → OpenVINO Runtime → CPU
+
+    Haut niveau : PyTorch (modèle pré-entraîné).
+
+    Format du modèle : ONNX.
+
+    Middle Level : OpenVINO Runtime (optimisations, fusion d'opérateurs et sélection de kernels).
+
+    Bas niveau : kernels CPU optimisés, notamment via oneDNN.
+
+    Matériel : CPU de Google Colab.
+
+Ce pipeline illustre une approche industrielle de déploiement et d'optimisation des modèles d'IA sur CPU.
+Pipeline CPU n°2 : PyTorch → TorchScript / torch.compile → CPU
+
+    Haut niveau : PyTorch.
+
+    Format du modèle : TorchScript ou graphe de calcul PyTorch 2 avec Inductor.
+
+    Middle Level : compilation et optimisation du graphe par PyTorch.
+
+    Bas niveau : kernels CPU générés ou sélectionnés par PyTorch.
+
+    Matériel : CPU de Google Colab.
+
+Ce pipeline permet d'étudier les mécanismes d'optimisation et de compilation natifs de PyTorch.
+II. Plateforme GPU : deux pipelines
+
+Pipeline GPU n°1 : PyTorch → ONNX → TensorRT → CUDA/cuDNN → GPU
+
+    Haut niveau : PyTorch.
+
+    Format du modèle : ONNX.
+
+    Middle Level : TensorRT (fusion d'opérateurs, optimisation des kernels et éventuellement précision FP16).
+
+    Bas niveau : CUDA et cuDNN.
+
+    Matériel : GPU de Google Colab.
+
+Ce pipeline représente une approche spécialisée dans l'optimisation de l'inférence sur GPU NVIDIA.
+Pipeline GPU n°2 : PyTorch → torch.compile / TorchScript → CUDA → GPU
+
+    Haut niveau : PyTorch.
+
+    Format du modèle : graphe de calcul PyTorch / TorchScript / Inductor.
+
+    Middle Level : compilation et optimisation par PyTorch (fusion d'opérateurs et génération de kernels).
+
+    Bas niveau : CUDA/cuDNN et kernels optimisés gérés par PyTorch.
+
+    Matériel : GPU de Google Colab.
+
+Ce pipeline permet d'étudier une approche intégrée à l'écosystème PyTorch.
+ 
+Modèle et données à utiliser
+
+Tous les groupes devront utiliser les mêmes données et le même modèle afin de garantir une comparaison équitable.
+
+    Modèle : ResNet-18 pré-entraîné sur ImageNet.
+
+    Données : 50 images issues du jeu de test CIFAR-10.
+
+    Nombre de classes : 10.
+
+    Taille originale des images : 32 × 32 pixels.
+
+Les images devront subir le prétraitement nécessaire pour être compatibles avec ResNet-18, notamment le redimensionnement et la normalisation correspondant aux paramètres utilisés lors de son pré-entraînement.
+
+Le même sous-ensemble de 50 images et les mêmes paramètres de prétraitement devront être utilisés pour les quatre pipelines.
+ 
+Travail demandé
+ 
+Implémentation des pipelines
+
+    Mettre en place les quatre pipelines sur Google Colab (Vous devez avoir 4 Notebooks différents, une par pipeline).
+
+    Pour chaque pipeline, vous devrez mesurer et comparer les indicateurs suivants :
+
+A. Performances de traitement
+
+    Débit de traitement (Throughput) : nombre d'images traitées par seconde (images/s).
+
+    Temps d'inférence : temps nécessaire pour traiter les images (latence).
+
+B. Qualité des prédictions
+
+    Précision Top-1 (Top-1 Accuracy) sur les 50 images.
+
+    Comparaison des prédictions entre les différents pipelines afin de vérifier que les optimisations ne dégradent pas les résultats.
+
+ 
+
+Une seule mesure ne suffit pas pour évaluer correctement les performances d'un pipeline.
+
+Pour chaque pipeline, vous devrez donc :
+
+    Réaliser plusieurs répétitions des mesures (au minimum 3 exécutions indépendantes).
+
+    Calculer, pour chaque indicateur :
+
+        La moyenne.
+
+        L'écart-type.
+
+        Le minimum et le maximum.
+
+    Analyser la stabilité et la variabilité des résultats entre les différentes exécutions.
+
+L'objectif est de déterminer si les performances observées sont stables et reproductibles, ou si elles présentent des variations importantes.
+
+Vous devrez également veiller à utiliser des conditions expérimentales comparables : même nombre d'images, même taille de batch, mêmes paramètres de prétraitement et mêmes conditions d'exécution.
+ 
+
+Vous devrez produire des graphiques permettant de visualiser et de comparer les résultats obtenus.
+
+Les graphiques devront notamment présenter :
+
+    Le débit de traitement (images/s) pour les quatre pipelines.
+
+    Le temps d'inférence pour chaque pipeline.
+
+    La précision Top-1 obtenue.
+
+    La consommation énergétique et l'énergie consommée par image, lorsque les mesures sont disponibles.
+
+    La variabilité des mesures à l'aide de barres d'erreur (écart-type).
+
+Vous êtes libres de choisir les outils de visualisation (Matplotlib, Seaborn, etc.).
+
+Attention : les graphiques ne doivent pas être simplement ajoutés au rapport. Vous devrez les commenter et les analyser pour expliquer les différences observées entre les pipelines.
+ 
+Livrables et modalités de rendu
+
+Le livrable final devra prendre la forme d'un dépôt GitHub public, organisé et correctement documenté.
+
+Le dépôt devra obligatoirement contenir :
+
+    Le rapport technique (PDF) présentant les quatre pipelines, le protocole expérimental, les résultats obtenus, les graphiques générés et leur analyse.
+
+    Les notebooks Google Colab contenant les implémentations des quatre pipelines, les expérimentations, les mesures de performances et la génération des graphiques.
+
+    Un fichier README.md présentant le projet, son objectif, l'organisation du dépôt, les instructions d'exécution et les principales conclusions.
+
+Modalités de soumission sur Moodle
+
+Sur Moodle, chaque groupe devra soumettre uniquement le lien public de son dépôt GitHub.
+
+ 
+Résultat attendu
+
+À la fin de ce TP, vous devrez être capables de :
+
+    Comprendre les différentes couches d'une architecture de déploiement IA.
+
+    Mettre en œuvre plusieurs pipelines d'inférence à partir d'un même modèle PyTorch.
+
+    Comprendre le rôle des formats intermédiaires, des runtimes et des compilateurs.
+
+    Évaluer expérimentalement les performances d'un modèle sur CPU et GPU.
+
+    Analyser les compromis entre performances, précision et consommation énergétique.
+
+    Interpréter la stabilité et la reproductibilité des résultats expérimentaux.

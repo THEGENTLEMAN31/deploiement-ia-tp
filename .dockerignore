@@ -1,0 +1,15 @@
+.git
+.cache
+.home
+.ipynb_checkpoints
+__pycache__
+*.pyc
+results/*.json
+!results/.gitkeep
+report/rapport.pdf
+report/rapport.html
+report/screenshots/*.png
+!report/screenshots/.gitkeep
+artifacts/*.onnx
+artifacts/*.engine
+artifacts/*.plan

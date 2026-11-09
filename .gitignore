@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Caches locaux (créés par le conteneur)
+.cache/
+.home/
+
+# Gros artefacts regénérables
+artifacts/*.onnx
+artifacts/*.engine
+artifacts/*.plan
+artifacts/*.pt
+artifacts/*.pth
+
+# Résultats et rapport régénérables (on garde les CSV/JSON finaux ? oui, décommenter si besoin)
+# results/*.json
+# report/rapport.pdf
+# report/rapport.html
+
+# OS / éditeurs
+.DS_Store
+*.swp

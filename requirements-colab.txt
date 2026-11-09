@@ -1,0 +1,19 @@
+# Dépendances optionnelles pour exécuter les notebooks hors Docker / sur Colab.
+# L'image Docker fige déjà des versions compatibles (voir Dockerfile).
+torch>=2.5,<2.6
+torchvision>=0.20,<0.21
+onnx==1.17.0
+onnxruntime-gpu==1.20.2
+openvino==2025.1.0
+tensorrt==10.7.0.post1
+numpy==1.26.4
+pandas>=2.2
+matplotlib>=3.9
+seaborn>=0.13
+psutil>=6.0
+nvidia-ml-py>=12.560
+scikit-learn>=1.5
+jupyterlab>=4.3
+nbconvert>=7.16
+nbclient>=0.10
+ipykernel>=6.29
