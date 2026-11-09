@@ -9,12 +9,21 @@ venv/
 .cache/
 .home/
 
+# Wheels TensorRT téléchargés manuellement (2 Go, non versionnés)
+.build-cache/*.whl
+.build-cache/*.tar.gz
+
 # Gros artefacts regénérables
+artifacts/cifar10/
 artifacts/*.onnx
 artifacts/*.engine
 artifacts/*.plan
 artifacts/*.pt
 artifacts/*.pth
+artifacts/trt_cache/
+
+# Pages HTML intermédiaires des notebooks (les captures PNG sont versionnées)
+report/notebook_html/
 
 # Résultats et rapport régénérables (on garde les CSV/JSON finaux ? oui, décommenter si besoin)
 # results/*.json
@@ -24,3 +33,6 @@ artifacts/*.pth
 # OS / éditeurs
 .DS_Store
 *.swp
+
+# Cache TensorRT (moteurs régénérables)
+artifacts/trt_cache/

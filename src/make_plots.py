@@ -38,20 +38,22 @@ def existing(ids: list[str]) -> list[str]:
     return [i for i in ids if C.result_exists(i)]
 
 
-def annotate_bars(ax, bars, fmt="{:.1f}", offset=0.02):
+def annotate_bars(ax, bars, fmt="{:.1f}", errors=None):
     ymax = max((b.get_height() for b in bars), default=1.0)
-    for bar in bars:
+    errors = list(errors) if errors is not None else [0.0] * len(bars)
+    for bar, error in zip(bars, errors):
         height = bar.get_height()
+        error = 0.0 if error is None or np.isnan(error) else float(error)
         ax.annotate(
             fmt.format(height),
-            xy=(bar.get_x() + bar.get_width() / 2, height),
-            xytext=(0, 3),
+            xy=(bar.get_x() + bar.get_width() / 2, height + error + 0.02 * ymax),
+            xytext=(0, 0),
             textcoords="offset points",
             ha="center",
             va="bottom",
             fontsize=8,
         )
-    ax.set_ylim(0, ymax * 1.15)
+    ax.set_ylim(0, (ymax + max(errors, default=0.0)) * 1.12)
 
 
 def grouped_bars(ax, df: pd.DataFrame, metric: str, std_metric: str, ylabel: str, title: str, color_offset: int = 0):
@@ -62,7 +64,7 @@ def grouped_bars(ax, df: pd.DataFrame, metric: str, std_metric: str, ylabel: str
     ax.set_xticklabels(df["pipeline"], rotation=20, ha="right", fontsize=8)
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=10)
-    annotate_bars(ax, bars)
+    annotate_bars(ax, bars, errors=df[std_metric])
 
 
 def plot_device_panels(metric: str, std_metric: str, ylabel: str, title: str, filename: str):
@@ -192,7 +194,7 @@ def main() -> None:
         ax.set_xticklabels(sub["pipeline"], rotation=20, ha="right", fontsize=8)
         ax.set_ylabel("J / image")
         ax.set_title(f"Énergie par image — {panel_title}", fontsize=10)
-        annotate_bars(ax, bars, fmt="{:.2f}")
+        annotate_bars(ax, bars, fmt="{:.2f}", errors=sub["energy_per_image_std"])
     fig.tight_layout()
     fig.savefig(C.FIGURES / "fig_energy.png", dpi=200, bbox_inches="tight")
     plt.close(fig)

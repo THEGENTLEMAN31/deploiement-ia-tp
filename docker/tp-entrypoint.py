@@ -14,6 +14,7 @@ RAPL_FDS (JSON).
 """
 from __future__ import annotations
 
+import glob
 import json
 import os
 import subprocess
@@ -88,6 +89,15 @@ def main() -> None:
     os.environ.setdefault("TORCH_HOME", "/workspace/.cache/torch")
     os.environ.setdefault("XDG_CACHE_HOME", "/workspace/.cache")
     os.environ.setdefault("MPLCONFIGDIR", "/workspace/.cache/matplotlib")
+
+    # Les libs TensorRT et CUDA/cuDNN installées par pip ne sont pas dans le
+    # chemin standard du loader ; on les ajoute sans écraser le reste.
+    lib_dirs = ["/opt/conda/lib/python3.11/site-packages/tensorrt_libs"]
+    lib_dirs += sorted(
+        glob.glob("/opt/conda/lib/python3.11/site-packages/nvidia/*/lib")
+    )
+    current = os.environ.get("LD_LIBRARY_PATH", "")
+    os.environ["LD_LIBRARY_PATH"] = ":".join(lib_dirs) + ((":" + current) if current else "")
 
     # Abandon des privilèges avant d'exécuter la commande demandée.
     try:

@@ -612,6 +612,98 @@ def run_benchmark(
     return records, summary, last_output
 
 
+def measure_gpu_energy(
+    fn: Callable[[torch.Tensor], np.ndarray],
+    x_cpu: torch.Tensor,
+    device: str | torch.device = "cuda",
+    passes: int = 20,
+    repetitions: int = 3,
+    sample_interval: float = 0.01,
+) -> dict:
+    """Mesure l'énergie GPU par échantillonnage NVML sur des passes répétées.
+
+    Le compteur ``nvmlDeviceGetTotalEnergyConsumption`` a une résolution trop
+    grossière pour une exécution de 50 images de quelques dizaines de ms : il
+    renvoie parfois 0. On intégre donc la puissance instantanée ``power.draw``
+    sur plusieurs passes, ce qui donne une mesure stable et interprétable.
+    """
+    if not is_cuda(device):
+        return {}
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(torch.cuda.current_device())
+    except Exception:
+        return {}
+
+    # Puissance au repos (courte fenêtre).
+    idle_samples: list[float] = []
+    for _ in range(30):
+        try:
+            idle_samples.append(pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0)
+        except Exception:
+            pass
+        time.sleep(sample_interval)
+    idle_power = statistics.fmean(idle_samples) if idle_samples else None
+
+    reps: list[dict] = []
+    for rep in range(repetitions):
+        samples: list[float] = []
+        stop = threading.Event()
+
+        def sampler() -> None:
+            while not stop.is_set():
+                try:
+                    samples.append(pynvml.nvmlDeviceGetPowerUsage(handle) / 1000.0)
+                except Exception:
+                    pass
+                time.sleep(sample_interval)
+
+        thread = threading.Thread(target=sampler, daemon=True)
+        thread.start()
+        sync(device)
+        t0 = time.perf_counter()
+        for _ in range(passes):
+            fn(x_cpu)
+            sync(device)
+        t1 = time.perf_counter()
+        stop.set()
+        thread.join(timeout=1.0)
+
+        duration = t1 - t0
+        avg_power = statistics.fmean(samples) if samples else None
+        total_j = avg_power * duration if avg_power is not None else None
+        n_images = len(x_cpu) * passes
+        reps.append(
+            {
+                "repetition": rep + 1,
+                "duration_s": duration,
+                "avg_power_w": avg_power,
+                "gpu_energy_j": total_j,
+                "gpu_energy_j_50": total_j / passes if total_j is not None else None,
+                "gpu_energy_per_image_j": total_j / n_images if total_j is not None else None,
+                "samples": len(samples),
+            }
+        )
+
+    per_image = [r["gpu_energy_per_image_j"] for r in reps if r["gpu_energy_per_image_j"] is not None]
+    totals = [r["gpu_energy_j_50"] for r in reps if r["gpu_energy_j_50"] is not None]
+    powers = [r["avg_power_w"] for r in reps if r["avg_power_w"] is not None]
+    return {
+        "method": "NVML power.draw intégré sur passes répétées",
+        "passes": passes,
+        "repetitions": repetitions,
+        "n_images": int(len(x_cpu) * passes * repetitions),
+        "idle_power_w": idle_power,
+        "samples_per_rep": [r["samples"] for r in reps],
+        "repetitions_data": reps,
+        "gpu_energy_j": _stats(totals),
+        "gpu_energy_per_image_j": _stats(per_image),
+        "avg_power_w": _stats(powers),
+    }
+
+
 def top1_accuracy(logits: np.ndarray, labels: np.ndarray) -> float:
     return float((logits.argmax(axis=1) == labels).mean())
 
@@ -681,8 +773,13 @@ def result_exists(result_id: str) -> bool:
     return (RESULTS / f"{result_id}.json").exists()
 
 
+def _reference_id(device: str) -> str:
+    """Suffixe lisible : cpu -> _cpu, cuda -> _gpu."""
+    return f"00_reference_pytorch_{'gpu' if device == 'cuda' else device}"
+
+
 def load_reference_logits(device: str) -> np.ndarray | None:
-    path = RESULTS / f"00_reference_pytorch_{device}_logits.npy"
+    path = RESULTS / f"{_reference_id(device)}_logits.npy"
     return np.load(path) if path.exists() else None
 
 
@@ -692,12 +789,15 @@ def ensure_reference(
     labels: np.ndarray,
 ) -> dict:
     """Charge (ou calcule) la référence PyTorch eager pour un device donné."""
-    result_id = f"00_reference_pytorch_{device}"
+    result_id = _reference_id(device)
     if result_exists(result_id):
         return load_result(result_id)
     model = build_model(device)
     fn = make_torch_fn(model, device)
     records, summary, logits = run_benchmark(fn, x_cpu, device)
+    extra = {}
+    if device == "cuda":
+        extra["energy_measurement"] = measure_gpu_energy(fn, x_cpu, device)
     save_result(
         result_id,
         records,
@@ -707,6 +807,7 @@ def ensure_reference(
         device=device,
         backend="pytorch-eager",
         notes="Référence PyTorch eager, même protocole que les pipelines optimisés.",
+        extra=extra,
     )
     return load_result(result_id)
 
@@ -731,6 +832,23 @@ def comparison_rows(result_ids: Iterable[str]) -> list[dict]:
             continue
         result = load_result(result_id)
         s = result["summary"]
+        measurement = result.get("energy_measurement") or {}
+        loop_energy = measurement.get("gpu_energy_per_image_j") or {}
+        if loop_energy.get("n"):
+            energy_mean = loop_energy["mean"]
+            energy_std = loop_energy["std"]
+            energy_source = "gpu_loop"
+        elif s["energy_per_image_gpu_j"]["n"]:
+            energy_mean = s["energy_per_image_gpu_j"]["mean"]
+            energy_std = s["energy_per_image_gpu_j"]["std"]
+            energy_source = "gpu_counter"
+        elif s["energy_per_image_cpu_j"]["n"]:
+            energy_mean = s["energy_per_image_cpu_j"]["mean"]
+            energy_std = s["energy_per_image_cpu_j"]["std"]
+            energy_source = "cpu_rapl"
+        else:
+            energy_mean = energy_std = None
+            energy_source = None
         rows.append(
             {
                 "id": result_id,
@@ -742,20 +860,9 @@ def comparison_rows(result_ids: Iterable[str]) -> list[dict]:
                 "latency_ms": s["latency_ms_per_image"]["mean"],
                 "latency_std": s["latency_ms_per_image"]["std"],
                 "accuracy": result["accuracy_top1"],
-                "energy_per_image_j": (
-                    s["energy_per_image_gpu_j"]["mean"]
-                    if s["energy_per_image_gpu_j"]["n"]
-                    else s["energy_per_image_cpu_j"]["mean"]
-                    if s["energy_per_image_cpu_j"]["n"]
-                    else None
-                ),
-                "energy_per_image_std": (
-                    s["energy_per_image_gpu_j"]["std"]
-                    if s["energy_per_image_gpu_j"]["n"]
-                    else s["energy_per_image_cpu_j"]["std"]
-                    if s["energy_per_image_cpu_j"]["n"]
-                    else None
-                ),
+                "energy_per_image_j": energy_mean,
+                "energy_per_image_std": energy_std,
+                "energy_source": energy_source,
             }
         )
     return rows

@@ -4,12 +4,15 @@
 .ipynb_checkpoints
 __pycache__
 *.pyc
-results/*.json
-!results/.gitkeep
-report/rapport.pdf
-report/rapport.html
-report/screenshots/*.png
-!report/screenshots/.gitkeep
+artifacts/cifar10/
 artifacts/*.onnx
 artifacts/*.engine
 artifacts/*.plan
+results/
+report/figures/
+report/screenshots/
+report/notebook_html/
+report/logs/
+report/rapport.pdf
+report/rapport.html
+# On garde .build-cache/ : le wheel TensorRT local doit être copié dans l'image.

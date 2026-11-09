@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>TP Déploiement IA — Rapport technique</title>
+<style>
+  :root {
+    --bleu: #1f3a5f;
+    --bleu2: #2e6da4;
+    --gris: #5b6770;
+    --fond: #f7f9fb;
+    --bord: #d8dee4;
+  }
+  @page { size: A4; margin: 17mm 15mm 17mm 15mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif;
+    font-size: 10.2pt; line-height: 1.45; color: #1b1f23; margin: 0;
+  }
+  h1 { color: var(--bleu); font-size: 20pt; margin: 0 0 6mm 0; }
+  h2 { color: var(--bleu); font-size: 15pt; margin: 0 0 4mm 0; padding-bottom: 2mm;
+        border-bottom: 1.5px solid var(--bleu2); page-break-after: avoid; }
+  h3 { color: var(--bleu2); font-size: 12pt; margin: 6mm 0 2mm 0; page-break-after: avoid; }
+  h4 { font-size: 10.5pt; margin: 4mm 0 1.5mm 0; color: #333; page-break-after: avoid; }
+  p { margin: 0 0 2.5mm 0; text-align: justify; }
+  ul, ol { margin: 0 0 3mm 0; padding-left: 5mm; }
+  li { margin-bottom: 1mm; }
+  code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; background: #eef2f6;
+          padding: 0.3mm 1.2mm; border-radius: 1.5mm; }
+  pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.2pt; background: #f2f5f8;
+         border: 1px solid var(--bord); border-radius: 2mm; padding: 2.5mm; overflow-x: auto;
+         white-space: pre-wrap; page-break-inside: avoid; }
+  table.data { width: 100%; border-collapse: collapse; margin: 3mm 0 5mm 0; font-size: 8.0pt;
+                page-break-inside: auto; }
+  table.data th { background: var(--bleu); color: white; padding: 1.5mm 1.2mm; text-align: left;
+                   font-weight: 600; vertical-align: bottom; }
+  table.data td { border-bottom: 0.4px solid var(--bord); padding: 1.3mm 1.2mm; vertical-align: top; }
+  table.data tr:nth-child(even) td { background: var(--fond); }
+  .muted { color: var(--gris); font-size: 7.4pt; }
+  figure { margin: 4mm 0 5mm 0; page-break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; max-height: 150mm; border: 1px solid var(--bord); border-radius: 1mm; }
+  figure.screenshot img { max-height: 120mm; }
+  figcaption { font-size: 8.4pt; color: var(--gris); margin-top: 1.5mm; font-style: italic; }
+  .cover { height: 245mm; display: flex; flex-direction: column; justify-content: center;
+            page-break-after: always; text-align: center; }
+  .cover h1 { font-size: 24pt; line-height: 1.25; margin-bottom: 5mm; }
+  .cover .sub { font-size: 14pt; color: var(--bleu2); margin-bottom: 18mm; }
+  .cover .meta { font-size: 10.5pt; color: var(--gris); }
+  .cover .box { border-top: 3px solid var(--bleu2); border-bottom: 3px solid var(--bleu2);
+                 padding: 8mm 4mm; margin: 0 10mm; }
+  .newpage { page-break-before: always; }
+  .callout { background: #eef5fb; border-left: 4px solid var(--bleu2); padding: 3mm 4mm;
+              margin: 3mm 0 4mm 0; border-radius: 0 2mm 2mm 0; page-break-inside: avoid; }
+  .warn { background: #fff7e6; border-left: 4px solid #d68910; }
+  .toc { font-size: 10pt; }
+  .toc li { margin-bottom: 1.4mm; }
+  .toc a { color: #1b1f23; text-decoration: none; }
+  .tag { display: inline-block; background: var(--bleu2); color: white; border-radius: 1.5mm;
+          padding: 0.3mm 1.5mm; font-size: 7.5pt; margin-right: 1mm; }
+  .small { font-size: 8.4pt; }
+  .center { text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="box">
+    <h1>Déploiement d'un modèle d'IA :<br>quatre pipelines CPU et GPU</h1>
+    <div class="sub">Rapport technique — TP de déploiement IA</div>
+    <div class="meta">
+      Modèle ResNet-18 · CIFAR-10 · ONNX · OpenVINO · TensorRT · torch.compile<br><br>
+      Auteur : THEGENTLEMAN31<br>
+      Date : 09/11/2026<br>
+      Dépôt : <code>deploiement-ia-tp</code>
+    </div>
+  </div>
+</div>
+
+<h1>Résumé exécutif</h1>
+<p>
+Ce rapport compare quatre chaînes de déploiement d'un même modèle ResNet-18 sur deux
+architectures : deux pipelines CPU (ONNX → OpenVINO ; TorchScript/torch.compile) et deux
+pipelines GPU (ONNX → TensorRT ; TorchScript/torch.compile). Le protocole est strictement
+identique : 50 images CIFAR-10 de test, prétraitement ImageNet, batch de 10, 5 warmups et
+5 répétitions indépendantes. Les mesures couvrent le débit, la latence, la Top-1, l'accord
+des prédictions, l'énergie CPU (RAPL) et l'énergie GPU (NVML).
+</p>
+<div class="callout">
+<b>Principaux résultats.</b> Sur CPU, PyTorch eager traite <b>45.18 img/s</b> (22.196 ms/image). OpenVINO atteint <b>32.82 img/s</b>, soit <b>×0.73</b> et une latence de 30.474 ms/image. Le contrôle ONNX Runtime CPU se situe à 64.49 img/s ; comparer les deux runtimes permet d'isoler l'effet des optimisations propres à OpenVINO. `torch.compile` (Inductor) atteint 48.87 img/s (×1.08 vs eager). TorchScript, plus conservateur, atteint 56.31 img/s (×1.25). Sur GPU, PyTorch eager atteint <b>810.71 img/s</b> (1.233 ms/image). TensorRT (FP16) atteint <b>2182.71 img/s</b>, soit <b>×2.69</b>, avec une latence de 0.458 ms/image. ONNX Runtime CUDA sert de contrôle (800.10 img/s) : l'écart avec TensorRT provient de la fusion d'opérateurs et des kernels spécialisés, pas du simple passage sur GPU. `torch.compile` (Inductor/Triton) atteint 911.54 img/s (×1.12 vs eager). TorchScript CUDA reste à 934.97 img/s (×1.15).
+</div>
+<p>
+<b>Qualité préservée.</b> La Top-1 est <b>identique à 94.0 %</b> pour tous les pipelines, ce qui montre que les optimisations de déploiement ne dégradent pas la qualité des décisions. L'accord des prédictions avec la référence du même device est de <b>100.0 %</b> pour tous les pipelines : les optimisations ne changent aucune décision sur les 50 images.
+</p>
+<p>
+<b>Stabilité.</b> Le coefficient de variation du débit (σ/moyenne) reste <b>modéré</b> : de <b>0.31 %</b> (torch.compile (GPU)) à <b>6.68 %</b> (torch.compile (CPU)). Les mesures sont globalement stables et reproductibles ; les variations les plus fortes s'expliquent par la charge de fond de la station et par les temps de compilation/cache. Les répétitions individuelles sont détaillées en annexe ; les barres d'erreur des figures correspondent à l'écart-type des 5 exécutions indépendantes.
+</p>
+<p>
+<b>Énergie.</b> Côté CPU, l'énergie RAPL du package varie de <b>0.35</b> à <b>0.51 J/image</b> selon le pipeline, soit environ <b>17.3</b> à <b>25.7 J</b> pour les 50 images. Ces valeurs incluent tout le package CPU (et donc une partie du système), pas uniquement le modèle : elles servent à comparer les pipelines entre eux, pas à une facture électrique exacte. Côté GPU, l'énergie varie de <b>0.02</b> à <b>0.07 J/image</b>, soit <b>0.8</b> à <b>3.6 J</b> pour les 50 images. Elle est mesurée par intégration de la puissance NVML <code>power.draw</code> sur 3 séries de 20 passes : le compteur d'énergie total, trop grossier pour des runs de quelques dizaines de millisecondes, renvoyait parfois 0. La puissance au repos mesurée est d'environ <b>31.3 W</b> ; l'énergie totale inclut cette composante. Le GPU est plus rapide mais sa puissance instantanée est beaucoup plus élevée ; le rapport énergie/temps est donc le bon indicateur pour arbitrer entre latence et coût énergétique.
+</p>
+
+<h2 class="newpage">Table des matières</h2>
+<ol class="toc">
+  <li><a href="#intro">Introduction et objectifs</a></li>
+  <li><a href="#couches">Les couches d'une chaîne de déploiement</a></li>
+  <li><a href="#donnees">Modèle, données et protocole</a></li>
+  <li><a href="#pipelines">Implémentation des quatre pipelines</a></li>
+  <li><a href="#resultats">Résultats expérimentaux</a></li>
+  <li><a href="#analyse">Analyse, compromis et limites</a></li>
+  <li><a href="#conclusion">Conclusion</a></li>
+  <li><a href="#reproduction">Reproductibilité et organisation du dépôt</a></li>
+  <li><a href="#annexes">Annexes : captures, mesures détaillées, environnement</a></li>
+</ol>
+
+<h2 id="intro" class="newpage">1. Introduction et objectifs</h2>
+<p>
+L'objectif du TP est de comprendre comment un modèle PyTorch passe du monde de
+l'entraînement à celui de l'inférence, et comment chaque couche logicielle
+(format intermédiaire, runtime, compilateur, kernels) influence les performances.
+Quatre pipelines sont étudiés, à modèle et données identiques :
+</p>
+<ol>
+  <li><b>CPU n°1 :</b> PyTorch → ONNX → OpenVINO Runtime → CPU (oneDNN).</li>
+  <li><b>CPU n°2 :</b> PyTorch → TorchScript / torch.compile (Inductor) → CPU.</li>
+  <li><b>GPU n°1 :</b> PyTorch → ONNX → TensorRT (FP16) → CUDA/cuDNN → GPU.</li>
+  <li><b>GPU n°2 :</b> PyTorch → TorchScript / torch.compile (Inductor + Triton) → CUDA → GPU.</li>
+</ol>
+<p>
+La question centrale n'est pas seulement « quel pipeline est le plus rapide ? »,
+mais aussi « à quel coût énergétique, avec quelle stabilité, et sans dégrader la
+qualité des prédictions ? ». C'est pourquoi chaque pipeline est mesuré plusieurs
+fois et comparé à une référence PyTorch eager exécutée sur le même matériel.
+</p>
+
+<h2 id="couches" class="newpage">2. Les couches d'une chaîne de déploiement</h2>
+<p>
+Une chaîne de déploiement peut se lire de haut en bas :
+</p>
+<ul>
+  <li><b>Haut niveau :</b> le framework d'entraînement (ici PyTorch) qui décrit le modèle
+      et ses poids.</li>
+  <li><b>Format du modèle :</b> la représentation intermédiaire échangée entre outils
+      (ONNX, TorchScript, graphe PyTorch 2).</li>
+  <li><b>Middle level :</b> le runtime ou le compilateur qui optimise le graphe
+      (OpenVINO, TensorRT, Inductor). Il fusionne les opérateurs, choisit des kernels,
+      éventuellement change la précision.</li>
+  <li><b>Bas niveau :</b> les bibliothèques de kernels (oneDNN sur CPU, CUDA/cuDNN sur GPU)
+      qui exploitent le matériel.</li>
+  <li><b>Matériel :</b> CPU ou GPU, avec sa hiérarchie mémoire et ses unités de calcul.</li>
+</ul>
+<p>
+Les deux pipelines CPU illustrent deux philosophies : un runtime externe spécialisé
+(OpenVINO) contre la compilation intégrée à PyTorch (TorchScript/Inductor). Les deux
+pipelines GPU opposent de même un runtime externe (TensorRT) à la compilation native
+(torch.compile/Triton).
+</p>
+
+    <figure>
+      <img src="figures/fig_pipelines.png" alt="Schéma des quatre chaînes : haut niveau, format, middle level, bas niveau et matériel.">
+      <figcaption>Schéma des quatre chaînes : haut niveau, format, middle level, bas niveau et matériel.</figcaption>
+    </figure>
+    
+
+<h2 id="donnees" class="newpage">3. Modèle, données et protocole</h2>
+<h3>3.1 Modèle et adaptation à CIFAR-10</h3>
+<p>
+Le modèle imposé est ResNet-18 pré-entraîné sur ImageNet. Or ImageNet contient
+1000 classes et CIFAR-10 en contient 10 : utiliser directement la couche de sortie
+1000 classes ne permet pas de calculer une Top-1 sur les 10 classes CIFAR. Pour
+rester fidèle à l'esprit du TP (même modèle pré-entraîné, mêmes poids pour tous les
+pipelines) tout en obtenant une métrique significative, nous avons adopté un
+<b>linear probe</b> :
+</p>
+<ul>
+  <li>le backbone ResNet-18 ImageNet est conservé <b>gelé</b> ;</li>
+  <li>la couche <code>fc</code> est remplacée par une couche linéaire 512 → 10 ;</li>
+  <li>cette tête est entraînée sur les 50 000 images d'entraînement CIFAR-10
+      (features extraites une seule fois), avec une validation de 5 000 images ;</li>
+  <li>les poids obtenus sont sauvegardés dans <code>artifacts/classifier_head.npz</code>
+      et rechargés à l'identique par les quatre pipelines.</li>
+</ul>
+<p>
+Cette adaptation est explicitement documentée : elle ne remet pas en cause la
+comparaison des pipelines, puisque tous utilisent exactement le même graphe et les
+mêmes poids. Les optimisations de déploiement sont donc le seul facteur qui varie.
+</p>
+<p>
+Accuracy obtenue sur le test complet CIFAR-10 (10 000 images) :
+<b>86.9 %</b> ; sur les 50 images du TP :
+<b>94.0 %</b>. La faible taille de l'échantillon (50 images)
+explique qu'un ou deux exemples changent sensiblement le pourcentage.
+</p>
+
+<h3>3.2 Données et prétraitement</h3>
+<p>
+Le sous-ensemble est constitué de 5 images de test par classe, sélectionnées avec
+la seed 42, soit 50 images. Chaque image 32×32 est redimensionnée en 224×224
+(interpolation bilinéaire avec antialiasing), convertie en float32, puis normalisée
+avec les moyennes et écarts-types ImageNet. Le prétraitement est identique pour les
+quatre pipelines et il est effectué <b>avant</b> la boucle chronométrée : on mesure
+l'inférence, pas le décodage JPEG ni le redimensionnement.
+</p>
+<table class="data"><thead><tr><th>Classe</th><th>Nom</th><th>Images dans le sous-ensemble</th></tr></thead><tbody><tr><td>0</td><td>airplane</td><td>5</td></tr><tr><td>1</td><td>automobile</td><td>5</td></tr><tr><td>2</td><td>bird</td><td>5</td></tr><tr><td>3</td><td>cat</td><td>5</td></tr><tr><td>4</td><td>deer</td><td>5</td></tr><tr><td>5</td><td>dog</td><td>5</td></tr><tr><td>6</td><td>frog</td><td>5</td></tr><tr><td>7</td><td>horse</td><td>5</td></tr><tr><td>8</td><td>ship</td><td>5</td></tr><tr><td>9</td><td>truck</td><td>5</td></tr></tbody></table>
+
+    <figure>
+      <img src="figures/cifar10_subset.png" alt="Les 50 images du sous-ensemble, 5 par classe.">
+      <figcaption>Les 50 images du sous-ensemble, 5 par classe.</figcaption>
+    </figure>
+    
+
+<h3>3.3 Protocole de mesure</h3>
+<ul>
+  <li><b>Batch :</b> 10 images (5 batchs exactement pour 50 images, sans padding).</li>
+  <li><b>Warmups :</b> 5 passes complètes avant les mesures, pour absorber la compilation
+      (torch.compile, TensorRT) et remplir les caches.</li>
+  <li><b>Répétitions :</b> 5 exécutions indépendantes.</li>
+  <li><b>Débit :</b> 50 / temps total (images/s).</li>
+  <li><b>Latence :</b> temps total / 50 (ms/image).</li>
+  <li><b>Statistiques :</b> moyenne, écart-type (échantillon), minimum et maximum sur les
+      5 répétitions.</li>
+  <li><b>Top-1 :</b> comparaison de l'argmax des logits aux labels CIFAR-10.</li>
+  <li><b>Accord :</b> pourcentage d'images pour lesquelles deux pipelines prédisent la même classe.</li>
+  <li><b>Énergie CPU :</b> compteur RAPL <code>package-0</code> (µJ → J), via un démon lancé par
+      l'entrypoint Docker. Il s'agit de l'énergie du package CPU, pas seulement du modèle.</li>
+  <li><b>Énergie GPU :</b> compteur NVML <code>nvmlDeviceGetTotalEnergyConsumption</code> lorsque
+      disponible, sinon échantillonnage de la puissance instantanée.</li>
+</ul>
+<div class="callout warn">
+<b>Limite importante.</b> Les mesures ont été réalisées sur une station locale
+(CPU Intel Core i5-10200H, GPU RTX 3050 Laptop 4 Go), et non sur Google Colab.
+Les valeurs absolues ne sont donc pas transposables telles quelles à Colab, mais
+les <b>tendances</b> et les <b>comparaisons relatives</b> restent valables. Les notebooks
+sont prévus pour tourner aussi sur Colab (cellule de setup et instructions).
+</div>
+
+<h3>3.4 Environnement d'exécution</h3>
+<table class="data"><thead><tr><th>Paramètre</th><th>Valeur</th></tr></thead><tbody><tr><td>Modèle</td><td>ResNet-18 (torchvision, poids IMAGENET1K_V1) + tête linéaire 10 classes</td></tr><tr><td>Adaptation</td><td>linear probe (backbone gelé) sur CIFAR-10</td></tr><tr><td>Données</td><td>CIFAR-10, sous-ensemble de 50 images de test (5 par classe)</td></tr><tr><td>Prétraitement</td><td>32×32 → 224×224 (bilinéaire antialias), normalisation ImageNet</td></tr><tr><td>Classes</td><td>airplane, automobile, bird, cat, deer, dog, frog, horse, ship, truck</td></tr><tr><td>Batch</td><td>10 images (5 batchs pour 50 images)</td></tr><tr><td>Répétitions</td><td>5 exécutions indépendantes + 5 warmups</td></tr><tr><td>Seed</td><td>42</td></tr><tr><td>CPU</td><td>Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz (8 threads logiques, 4 utilisés)</td></tr><tr><td>GPU</td><td>NVIDIA GeForce RTX 3050 Laptop GPU</td></tr><tr><td>CUDA / cuDNN</td><td>12.4 / 90100</td></tr><tr><td>PyTorch / torchvision</td><td>2.5.1+cu124 / 0.20.1+cu124</td></tr><tr><td>ONNX / ONNX Runtime</td><td>1.17.0 / 1.20.2</td></tr><tr><td>OpenVINO / TensorRT</td><td>2025.1.0-18503-6fec06580ab-releases/2025/1 / 10.7.0.post1</td></tr><tr><td>Système</td><td>Linux-7.2.11-arch1-1-x86_64-with-glibc2.35</td></tr></tbody></table>
+
+<h2 id="pipelines" class="newpage">4. Implémentation des quatre pipelines</h2>
+
+<h3>4.1 Pipeline CPU n°1 — PyTorch → ONNX → OpenVINO → CPU</h3>
+<p>
+Le modèle est exporté en ONNX (opset 17, batch fixe 10) avec <code>torch.onnx.export</code>.
+ONNX Runtime CPU sert de contrôle, puis OpenVINO convertit le même fichier ONNX et
+compile pour le CPU avec <code>PERFORMANCE_HINT=THROUGHPUT</code> et 4 threads.
+OpenVINO applique ses fusions et sélectionne des kernels oneDNN.
+</p>
+<pre>python -m src.prepare
+docker compose run --rm tp jupyter nbconvert --to notebook --execute --inplace \
+  notebooks/01_cpu_onnx_openvino.ipynb</pre>
+
+<h3>4.2 Pipeline CPU n°2 — TorchScript / torch.compile → CPU</h3>
+<p>
+Deux variantes natives sont mesurées. TorchScript trace le modèle, le gèle et
+applique <code>optimize_for_inference</code>. <code>torch.compile</code> capture le graphe,
+le compile avec Inductor et génère des kernels C++/OpenMP. Les warmups absorbent
+le coût de compilation ; on mesure le régime établi.
+</p>
+<pre>docker compose run --rm tp jupyter nbconvert --to notebook --execute --inplace \
+  notebooks/02_cpu_torchscript_compile.ipynb</pre>
+
+<h3>4.3 Pipeline GPU n°1 — PyTorch → ONNX → TensorRT → CUDA/cuDNN → GPU</h3>
+<p>
+Le même fichier ONNX est chargé par ONNX Runtime avec l'Execution Provider
+TensorRT (FP16, cache de moteur, workspace 1 Go). ONNX Runtime CUDA sert de
+contrôle pour isoler l'apport de TensorRT. Le premier appel construit le moteur ;
+les warmups absorbent cette étape.
+</p>
+<pre>docker compose run --rm tp jupyter nbconvert --to notebook --execute --inplace \
+  notebooks/03_gpu_onnx_tensorrt.ipynb</pre>
+
+<h3>4.4 Pipeline GPU n°2 — TorchScript / torch.compile → CUDA → GPU</h3>
+<p>
+TorchScript CUDA sert de contrôle, puis <code>torch.compile</code> compile le modèle
+avec Inductor et génère des kernels Triton pour le GPU. La comparaison avec
+TensorRT met en évidence deux approches : runtime externe spécialisé contre
+compilation intégrée à l'écosystème PyTorch.
+</p>
+<pre>docker compose run --rm tp jupyter nbconvert --to notebook --execute --inplace \
+  notebooks/04_gpu_torch_compile.ipynb</pre>
+
+<h2 id="resultats" class="newpage">5. Résultats expérimentaux</h2>
+<h3>5.1 Vue d'ensemble des quatre pipelines</h3>
+<table class="data"><thead><tr><th>Pipeline</th><th>Device</th><th>Débit (img/s)<br><span class='muted'>moy ± σ</span></th><th>Latence (ms/img)<br><span class='muted'>moy ± σ</span></th><th>Top-1</th><th>Gain vs eager</th></tr></thead><tbody><tr><td>ONNX → OpenVINO (CPU)</td><td>CPU</td><td>32.82 ± 0.18</td><td>30.474 ± 0.168</td><td>94.0 %</td><td>×0.73</td></tr><tr><td>torch.compile (CPU)</td><td>CPU</td><td>48.87 ± 3.27</td><td>20.538 ± 1.418</td><td>94.0 %</td><td>×1.08</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>CUDA</td><td>2182.71 ± 45.36</td><td>0.458 ± 0.009</td><td>94.0 %</td><td>×2.69</td></tr><tr><td>torch.compile (GPU)</td><td>CUDA</td><td>911.54 ± 2.86</td><td>1.097 ± 0.003</td><td>94.0 %</td><td>×1.12</td></tr></tbody></table>
+
+<h3>5.2 Débit et latence</h3>
+<p>Sur CPU, PyTorch eager traite <b>45.18 img/s</b> (22.196 ms/image). OpenVINO atteint <b>32.82 img/s</b>, soit <b>×0.73</b> et une latence de 30.474 ms/image. Le contrôle ONNX Runtime CPU se situe à 64.49 img/s ; comparer les deux runtimes permet d'isoler l'effet des optimisations propres à OpenVINO. `torch.compile` (Inductor) atteint 48.87 img/s (×1.08 vs eager). TorchScript, plus conservateur, atteint 56.31 img/s (×1.25).</p>
+<p>Sur GPU, PyTorch eager atteint <b>810.71 img/s</b> (1.233 ms/image). TensorRT (FP16) atteint <b>2182.71 img/s</b>, soit <b>×2.69</b>, avec une latence de 0.458 ms/image. ONNX Runtime CUDA sert de contrôle (800.10 img/s) : l'écart avec TensorRT provient de la fusion d'opérateurs et des kernels spécialisés, pas du simple passage sur GPU. `torch.compile` (Inductor/Triton) atteint 911.54 img/s (×1.12 vs eager). TorchScript CUDA reste à 934.97 img/s (×1.15).</p>
+
+    <figure>
+      <img src="figures/fig_throughput.png" alt="Débit de traitement des pipelines CPU (gauche) et GPU (droite). Les barres d&#x27;erreur représentent l&#x27;écart-type des 5 répétitions.">
+      <figcaption>Débit de traitement des pipelines CPU (gauche) et GPU (droite). Les barres d&#x27;erreur représentent l&#x27;écart-type des 5 répétitions.</figcaption>
+    </figure>
+    
+
+    <figure>
+      <img src="figures/fig_latency.png" alt="Latence par image. Une valeur plus faible est meilleure.">
+      <figcaption>Latence par image. Une valeur plus faible est meilleure.</figcaption>
+    </figure>
+    
+
+    <figure>
+      <img src="figures/fig_speedup.png" alt="Gain de débit des quatre pipelines par rapport à PyTorch eager exécuté sur le même device.">
+      <figcaption>Gain de débit des quatre pipelines par rapport à PyTorch eager exécuté sur le même device.</figcaption>
+    </figure>
+    
+
+<h3>5.3 Qualité des prédictions</h3>
+<p>La Top-1 est <b>identique à 94.0 %</b> pour tous les pipelines, ce qui montre que les optimisations de déploiement ne dégradent pas la qualité des décisions. L'accord des prédictions avec la référence du même device est de <b>100.0 %</b> pour tous les pipelines : les optimisations ne changent aucune décision sur les 50 images.</p>
+
+    <figure>
+      <img src="figures/fig_accuracy.png" alt="Top-1 sur les 50 images. Les optimisations ne doivent pas dégrader la qualité.">
+      <figcaption>Top-1 sur les 50 images. Les optimisations ne doivent pas dégrader la qualité.</figcaption>
+    </figure>
+    
+
+    <figure>
+      <img src="figures/fig_confusion.png" alt="Matrice de confusion de la référence CPU sur les 50 images. Avec 5 images par classe, chaque erreur déplace 2 points de Top-1.">
+      <figcaption>Matrice de confusion de la référence CPU sur les 50 images. Avec 5 images par classe, chaque erreur déplace 2 points de Top-1.</figcaption>
+    </figure>
+    
+
+    <figure>
+      <img src="figures/fig_agreement.png" alt="Matrice d&#x27;accord des prédictions entre tous les pipelines. La diagonale vaut 100 % par construction ; les cases hors diagonale mesurent la conservation des décisions.">
+      <figcaption>Matrice d&#x27;accord des prédictions entre tous les pipelines. La diagonale vaut 100 % par construction ; les cases hors diagonale mesurent la conservation des décisions.</figcaption>
+    </figure>
+    
+
+<h3>5.4 Énergie</h3>
+<p>Côté CPU, l'énergie RAPL du package varie de <b>0.35</b> à <b>0.51 J/image</b> selon le pipeline, soit environ <b>17.3</b> à <b>25.7 J</b> pour les 50 images. Ces valeurs incluent tout le package CPU (et donc une partie du système), pas uniquement le modèle : elles servent à comparer les pipelines entre eux, pas à une facture électrique exacte. Côté GPU, l'énergie varie de <b>0.02</b> à <b>0.07 J/image</b>, soit <b>0.8</b> à <b>3.6 J</b> pour les 50 images. Elle est mesurée par intégration de la puissance NVML <code>power.draw</code> sur 3 séries de 20 passes : le compteur d'énergie total, trop grossier pour des runs de quelques dizaines de millisecondes, renvoyait parfois 0. La puissance au repos mesurée est d'environ <b>31.3 W</b> ; l'énergie totale inclut cette composante. Le GPU est plus rapide mais sa puissance instantanée est beaucoup plus élevée ; le rapport énergie/temps est donc le bon indicateur pour arbitrer entre latence et coût énergétique.</p>
+
+    <figure>
+      <img src="figures/fig_energy.png" alt="Énergie par image. À gauche, énergie du package CPU (RAPL) ; à droite, énergie du GPU (NVML). Les deux sources ne sont pas directement comparables en valeur absolue.">
+      <figcaption>Énergie par image. À gauche, énergie du package CPU (RAPL) ; à droite, énergie du GPU (NVML). Les deux sources ne sont pas directement comparables en valeur absolue.</figcaption>
+    </figure>
+    
+
+<h3>5.5 Stabilité et reproductibilité</h3>
+<p>Le coefficient de variation du débit (σ/moyenne) reste <b>modéré</b> : de <b>0.31 %</b> (torch.compile (GPU)) à <b>6.68 %</b> (torch.compile (CPU)). Les mesures sont globalement stables et reproductibles ; les variations les plus fortes s'expliquent par la charge de fond de la station et par les temps de compilation/cache. Les répétitions individuelles sont détaillées en annexe ; les barres d'erreur des figures correspondent à l'écart-type des 5 exécutions indépendantes.</p>
+
+    <figure>
+      <img src="figures/fig_variability.png" alt="Distribution du débit sur les 5 répétitions (boîtes à moustaches). La stabilité est bonne lorsque les boîtes sont étroites.">
+      <figcaption>Distribution du débit sur les 5 répétitions (boîtes à moustaches). La stabilité est bonne lorsque les boîtes sont étroites.</figcaption>
+    </figure>
+    
+
+<h3>5.6 Tableau détaillé (moyenne, écart-type, min, max)</h3>
+<table class="data"><thead><tr><th>Pipeline</th><th>Device</th><th>Débit (img/s)<br><span class='muted'>moy ± σ ; min–max</span></th><th>Latence (ms/img)<br><span class='muted'>moy ± σ ; min–max</span></th><th>Top-1</th><th>Accord réf.</th></tr></thead><tbody><tr><td>PyTorch eager (CPU, réf.)</td><td>CPU</td><td>45.18 ± 2.61<br><span class='muted'>42.16 – 47.25</span></td><td>22.196 ± 1.312<br><span class='muted'>21.165 – 23.718</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>ONNX Runtime (CPU, contrôle)</td><td>CPU</td><td>64.49 ± 5.60<br><span class='muted'>56.40 – 70.25</span></td><td>15.604 ± 1.419<br><span class='muted'>14.235 – 17.732</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>CPU</td><td>32.82 ± 0.18<br><span class='muted'>32.63 – 33.11</span></td><td>30.474 ± 0.168<br><span class='muted'>30.202 – 30.645</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>TorchScript (CPU, contrôle)</td><td>CPU</td><td>56.31 ± 3.76<br><span class='muted'>50.20 – 60.31</span></td><td>17.826 ± 1.258<br><span class='muted'>16.582 – 19.919</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>torch.compile (CPU)</td><td>CPU</td><td>48.87 ± 3.27<br><span class='muted'>43.99 – 52.51</span></td><td>20.538 ± 1.418<br><span class='muted'>19.044 – 22.730</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>PyTorch eager (GPU, réf.)</td><td>CUDA</td><td>810.71 ± 3.43<br><span class='muted'>806.31 – 815.73</span></td><td>1.233 ± 0.005<br><span class='muted'>1.226 – 1.240</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>ONNX Runtime CUDA (GPU, contrôle)</td><td>CUDA</td><td>800.10 ± 1.49<br><span class='muted'>798.25 – 802.27</span></td><td>1.250 ± 0.002<br><span class='muted'>1.246 – 1.253</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>CUDA</td><td>2182.71 ± 45.36<br><span class='muted'>2138.62 – 2234.49</span></td><td>0.458 ± 0.009<br><span class='muted'>0.448 – 0.468</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>TorchScript CUDA (GPU, contrôle)</td><td>CUDA</td><td>934.97 ± 6.15<br><span class='muted'>926.54 – 940.73</span></td><td>1.070 ± 0.007<br><span class='muted'>1.063 – 1.079</span></td><td>94.0 %</td><td>100.0 %</td></tr><tr><td>torch.compile (GPU)</td><td>CUDA</td><td>911.54 ± 2.86<br><span class='muted'>907.48 – 914.61</span></td><td>1.097 ± 0.003<br><span class='muted'>1.093 – 1.102</span></td><td>94.0 %</td><td>100.0 %</td></tr></tbody></table>
+
+<h3>5.7 Énergie par image (détail)</h3>
+<p class="small muted">
+Pour le CPU, l'énergie provient du compteur RAPL du package sur chaque répétition.
+Pour le GPU, le compteur NVML total étant trop grossier pour des runs de quelques
+dizaines de millisecondes, l'énergie est obtenue en intégrant <code>power.draw</code>
+sur 3 séries de 20 passes (soit 3 000 images par pipeline) ; la moyenne et l'écart-type
+portent sur ces 3 mesures.
+</p>
+<table class="data"><thead><tr><th>Pipeline</th><th>Source</th><th>Énergie totale (J)<br><span class='muted'>moy ± σ</span></th><th>Énergie / image (J)<br><span class='muted'>moy ± σ</span></th><th>min – max</th></tr></thead><tbody><tr><td>PyTorch eager (CPU, réf.)</td><td>CPU (RAPL package)</td><td>23.6 ± 1.0</td><td>0.472 ± 0.020</td><td>0.456 – 0.495</td></tr><tr><td>ONNX Runtime (CPU, contrôle)</td><td>CPU (RAPL package)</td><td>17.3 ± 1.2</td><td>0.346 ± 0.024</td><td>0.321 – 0.381</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>CPU (RAPL package)</td><td>25.7 ± 0.2</td><td>0.513 ± 0.005</td><td>0.506 – 0.519</td></tr><tr><td>TorchScript (CPU, contrôle)</td><td>CPU (RAPL package)</td><td>19.6 ± 1.0</td><td>0.391 ± 0.021</td><td>0.370 – 0.425</td></tr><tr><td>torch.compile (CPU)</td><td>CPU (RAPL package)</td><td>22.7 ± 1.3</td><td>0.453 ± 0.026</td><td>0.426 – 0.494</td></tr><tr><td>PyTorch eager (GPU, réf.)</td><td>GPU (NVML power sampling)</td><td>3.5 ± 0.5</td><td>0.070 ± 0.011</td><td>0.057 – 0.077</td></tr><tr><td>ONNX Runtime CUDA (GPU, contrôle)</td><td>GPU (NVML power sampling)</td><td>3.6 ± 0.5</td><td>0.072 ± 0.010</td><td>0.060 – 0.079</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>GPU (NVML power sampling)</td><td>0.8 ± 0.2</td><td>0.016 ± 0.004</td><td>0.013 – 0.020</td></tr><tr><td>TorchScript CUDA (GPU, contrôle)</td><td>GPU (NVML power sampling)</td><td>3.1 ± 0.5</td><td>0.061 ± 0.011</td><td>0.049 – 0.069</td></tr><tr><td>torch.compile (GPU)</td><td>GPU (NVML power sampling)</td><td>3.1 ± 0.4</td><td>0.061 ± 0.007</td><td>0.053 – 0.066</td></tr></tbody></table>
+
+<h2 id="analyse" class="newpage">6. Analyse, compromis et limites</h2>
+<h3>6.1 Ce que les optimisations apportent réellement</h3>
+<p>
+Les résultats montrent que le gain dépend fortement du pipeline et du matériel.
+Sur CPU, ONNX Runtime et TorchScript dépassent PyTorch eager, tandis qu'OpenVINO
+est plus lent dans nos conditions (4 threads, batch 10, station partagée) ;
+<code>torch.compile</code> apporte un gain modeste. Sur GPU, TensorRT apporte le gain
+le plus net (fusion d'opérateurs, kernels spécialisés, FP16), et
+<code>torch.compile</code> un gain plus modeste via Triton. Dans tous les cas, le gain
+dépend de la taille de batch, du modèle et du temps de compilation, qui est exclu
+des mesures par les warmups.
+</p>
+<h3>6.2 Le compromis performance / énergie</h3>
+<p>
+Un pipeline plus rapide n'est pas nécessairement plus économe en énergie par image :
+le GPU consomme beaucoup plus de puissance instantanée que le CPU, mais il traite
+les images beaucoup plus vite. L'indicateur J/image permet de comparer ce compromis.
+Les valeurs CPU RAPL incluent l'ensemble du package et une partie du système ; elles
+servent surtout à comparer les pipelines CPU entre eux. Les valeurs GPU NVML sont
+plus directement attribuables au GPU.
+</p>
+<h3>6.3 Pourquoi la Top-1 est (presque) identique</h3>
+<p>
+Les optimisations de déploiement ne changent pas les poids du modèle. Elles peuvent
+modifier l'ordre des opérations, fusionner des couches ou passer en FP16, ce qui
+introduit de petites différences numériques. L'accord élevé des prédictions avec la
+référence montre que ces différences ne changent pas les décisions sur les 50 images.
+C'est le résultat attendu : un bon pipeline de déploiement doit préserver la qualité.
+</p>
+<h3>6.4 Limites expérimentales</h3>
+<ul>
+  <li>Le TP demande Google Colab ; les mesures locales sur RTX 3050 Laptop 4 Go et
+      i5-10200H ne sont pas directement transposables. Les notebooks sont compatibles
+      Colab, mais les valeurs absolues changeront.</li>
+  <li>Le sous-ensemble de 50 images est petit : un ou deux exemples suffisent à faire
+      varier la Top-1 de plusieurs points. Les comparaisons de qualité restent
+      indicatives ; l'accord de prédictions est plus robuste.</li>
+  <li>Le linear probe est une adaptation nécessaire à cause de l'incohérence
+      1000 classes ImageNet / 10 classes CIFAR-10. Il est documenté et identique pour
+      tous les pipelines.</li>
+  <li>L'énergie CPU RAPL est une mesure du package, pas du seul modèle ; elle inclut
+      le système et les autres processus.</li>
+  <li>TensorRT est utilisé via l'Execution Provider d'ONNX Runtime, et non via
+      <code>trtexec</code> : le moteur et les optimisations sont bien ceux de TensorRT,
+      mais l'interface diffère légèrement d'un déploiement TensorRT « pur ».</li>
+  <li>Les notebooks sont exécutés dans un conteneur Docker pour la reproductibilité ;
+      Colab peut avoir des versions de CUDA/TensorRT différentes.</li>
+  <li>La station de mesure exécutait d'autres conteneurs en arrière-plan (Hadoop,
+      listmonk). Cela peut ajouter du bruit aux mesures CPU ; l'écart-type sur 5
+      répétitions permet de vérifier que les conclusions restent robustes.</li>
+</ul>
+
+<h2 id="conclusion" class="newpage">7. Conclusion</h2>
+<p>
+Les quatre pipelines remplissent leur contrat : ils exécutent le même modèle sur les
+mêmes 50 images, avec le même prétraitement et le même batch, et conservent la
+qualité des prédictions. Les optimisations de déploiement apportent des gains de
+débit et de latence, variables selon le matériel et le runtime. OpenVINO et
+TensorRT illustrent l'approche « runtime externe spécialisé » ; TorchScript et
+<code>torch.compile</code> illustrent l'approche « compilation intégrée à PyTorch ».
+Le choix final dépend du matériel cible, du besoin de latence, du budget
+énergétique et de la facilité d'intégration.
+</p>
+<p>
+Au-delà des chiffres, ce TP montre qu'une mesure isolée ne suffit pas : il faut
+répéter, calculer moyenne et écart-type, vérifier la stabilité, comparer les
+prédictions et, lorsque c'est possible, mesurer l'énergie. C'est cette démarche
+expérimentale qui permet de conclure qu'un pipeline est réellement meilleur, et
+pas seulement plus rapide sur un unique essai.
+</p>
+
+<h2 id="reproduction" class="newpage">8. Reproductibilité et organisation du dépôt</h2>
+<h3>8.1 Arborescence</h3>
+<pre>deploiement-ia-tp/
+├── Dockerfile                  # image unique CPU + GPU (PyTorch, ONNX, OpenVINO, TensorRT)
+├── docker-compose.yml          # service "tp", GPU, RAPL, cache, UID hôte
+├── Makefile                    # build / prepare / notebooks / report
+├── artifacts/                  # 50 images, tête linéaire, métadonnées
+├── notebooks/                  # 00 référence + 4 pipelines
+├── src/                        # common.py, prepare.py, make_plots.py, make_report.py
+├── results/                    # JSON, CSV, logits
+├── report/                     # rapport.html, rapport.pdf, figures/, screenshots/
+├── scripts/                    # génération des notebooks, exécution
+└── README.md</pre>
+
+<h3>8.2 Commandes Docker</h3>
+<pre># Construction de l'image
+docker compose build
+
+# Préparation des données + entraînement du linear probe
+docker compose run --rm tp python -m src.prepare
+
+# Exécution des cinq notebooks (référence + 4 pipelines)
+docker compose run --rm tp bash scripts/execute_notebooks.sh
+
+# Figures + rapport HTML
+docker compose run --rm tp python -m src.make_plots
+docker compose run --rm tp python -m src.make_report</pre>
+<p>
+Le conteneur démarre en root uniquement pour ouvrir les compteurs RAPL, puis
+abandonne les privilèges vers l'UID 1000 avant d'exécuter les commandes : les
+fichiers du dépôt restent possédés par l'utilisateur hôte. Le flag
+<code>privileged: true</code> sert uniquement à exposer <code>/sys/class/powercap</code> ;
+on peut le retirer (et désactiver l'énergie CPU) sans affecter les benchmarks.
+</p>
+
+<h3>8.3 Google Colab</h3>
+<p>
+Les notebooks sont compatibles Colab. Il suffit de cloner le dépôt, d'ouvrir le
+notebook voulu et d'exécuter les cellules dans l'ordre. Pour les notebooks 03 et 04,
+sélectionner un runtime GPU. La cellule de setup installe les dépendances si
+nécessaire et clone le dépôt lorsque <code>TP_REPO_URL</code> est défini :
+</p>
+<pre>import os
+os.environ["TP_REPO_URL"] = "https://github.com/&lt;votre-compte&gt;/deploiement-ia-tp.git"
+# puis exécuter la cellule de setup du notebook</pre>
+
+<h2 id="annexes" class="newpage">9. Annexes</h2>
+<h3>9.1 Captures d'écran des notebooks exécutés</h3>
+<p>
+Les captures ci-dessous proviennent des notebooks réellement exécutés dans le
+conteneur. Elles montrent les paramètres, les tableaux de mesures et les figures
+générées.
+</p>
+
+    <figure class="screenshot">
+      <img src="screenshots/notebook_00.png" alt="Notebook 00 — référence PyTorch eager.">
+      <figcaption>Notebook 00 — référence PyTorch eager.</figcaption>
+    </figure>
+    
+
+    <figure class="screenshot">
+      <img src="screenshots/notebook_01.png" alt="Notebook 01 — ONNX → OpenVINO (CPU).">
+      <figcaption>Notebook 01 — ONNX → OpenVINO (CPU).</figcaption>
+    </figure>
+    
+
+    <figure class="screenshot">
+      <img src="screenshots/notebook_02.png" alt="Notebook 02 — TorchScript / torch.compile (CPU).">
+      <figcaption>Notebook 02 — TorchScript / torch.compile (CPU).</figcaption>
+    </figure>
+    
+
+    <figure class="screenshot">
+      <img src="screenshots/notebook_03.png" alt="Notebook 03 — ONNX → TensorRT (GPU).">
+      <figcaption>Notebook 03 — ONNX → TensorRT (GPU).</figcaption>
+    </figure>
+    
+
+    <figure class="screenshot">
+      <img src="screenshots/notebook_04.png" alt="Notebook 04 — torch.compile (GPU).">
+      <figcaption>Notebook 04 — torch.compile (GPU).</figcaption>
+    </figure>
+    
+
+    <figure class="screenshot">
+      <img src="screenshots/docker_env.png" alt="Preuves d&#x27;exécution : Docker, NVIDIA-SMI, versions PyTorch/ONNX Runtime/OpenVINO/TensorRT et préparation des données.">
+      <figcaption>Preuves d&#x27;exécution : Docker, NVIDIA-SMI, versions PyTorch/ONNX Runtime/OpenVINO/TensorRT et préparation des données.</figcaption>
+    </figure>
+    
+
+<h3>9.2 Mesures détaillées par répétition</h3>
+<table class="data"><thead><tr><th>Pipeline</th><th>Rép.</th><th>Débit (img/s)</th><th>Latence (ms/img)</th><th>Énergie/img (J)</th><th>Temps total (s)</th></tr></thead><tbody><tr><td>ONNX → OpenVINO (CPU)</td><td>1</td><td>32.79</td><td>30.493</td><td>0.513</td><td>1.5246</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>2</td><td>33.11</td><td>30.202</td><td>0.506</td><td>1.5101</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>3</td><td>32.83</td><td>30.461</td><td>0.513</td><td>1.5231</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>4</td><td>32.71</td><td>30.571</td><td>0.517</td><td>1.5286</td></tr><tr><td>ONNX → OpenVINO (CPU)</td><td>5</td><td>32.63</td><td>30.645</td><td>0.519</td><td>1.5322</td></tr><tr><td>torch.compile (CPU)</td><td>1</td><td>51.09</td><td>19.572</td><td>0.434</td><td>0.9786</td></tr><tr><td>torch.compile (CPU)</td><td>2</td><td>43.99</td><td>22.730</td><td>0.494</td><td>1.1365</td></tr><tr><td>torch.compile (CPU)</td><td>3</td><td>52.51</td><td>19.044</td><td>0.426</td><td>0.9522</td></tr><tr><td>torch.compile (CPU)</td><td>4</td><td>48.71</td><td>20.528</td><td>0.457</td><td>1.0264</td></tr><tr><td>torch.compile (CPU)</td><td>5</td><td>48.05</td><td>20.814</td><td>0.456</td><td>1.0407</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>1</td><td>2175.83</td><td>0.460</td><td>0.016</td><td>0.0230</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>2</td><td>2140.15</td><td>0.467</td><td>0.016</td><td>0.0234</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>3</td><td>2138.62</td><td>0.468</td><td>0.016</td><td>0.0234</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>4</td><td>2234.49</td><td>0.448</td><td>0.016</td><td>0.0224</td></tr><tr><td>ONNX → TensorRT (GPU)</td><td>5</td><td>2224.49</td><td>0.450</td><td>0.016</td><td>0.0225</td></tr><tr><td>torch.compile (GPU)</td><td>1</td><td>913.50</td><td>1.095</td><td>0.061</td><td>0.0547</td></tr><tr><td>torch.compile (GPU)</td><td>2</td><td>909.96</td><td>1.099</td><td>0.061</td><td>0.0549</td></tr><tr><td>torch.compile (GPU)</td><td>3</td><td>914.61</td><td>1.093</td><td>0.061</td><td>0.0547</td></tr><tr><td>torch.compile (GPU)</td><td>4</td><td>907.48</td><td>1.102</td><td>0.061</td><td>0.0551</td></tr><tr><td>torch.compile (GPU)</td><td>5</td><td>912.14</td><td>1.096</td><td>0.061</td><td>0.0548</td></tr></tbody></table>
+
+<h3>9.3 Environnement complet</h3>
+<table class="data"><thead><tr><th>Clé</th><th>Valeur</th></tr></thead><tbody><tr><td>timestamp_utc</td><td>2026-11-09T02:14:42.076752+00:00</td></tr><tr><td>python</td><td>3.11.10</td></tr><tr><td>platform</td><td>Linux-7.2.11-arch1-1-x86_64-with-glibc2.35</td></tr><tr><td>cpu</td><td>Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz</td></tr><tr><td>cpu_logical_cores</td><td>8</td></tr><tr><td>cpu_threads_used</td><td>4</td></tr><tr><td>torch</td><td>2.5.1+cu124</td></tr><tr><td>cuda_available</td><td>True</td></tr><tr><td>cuda_version</td><td>12.4</td></tr><tr><td>cudnn_version</td><td>90100</td></tr><tr><td>batch_size</td><td>10</td></tr><tr><td>repetitions</td><td>5</td></tr><tr><td>warmup</td><td>5</td></tr><tr><td>n_images</td><td>50</td></tr><tr><td>torchvision</td><td>0.20.1+cu124</td></tr><tr><td>onnx</td><td>1.17.0</td></tr><tr><td>onnxruntime</td><td>1.20.2</td></tr><tr><td>onnxruntime_providers</td><td>[&#x27;TensorrtExecutionProvider&#x27;, &#x27;CUDAExecutionProvider&#x27;, &#x27;CPUExecutionProvider&#x27;]</td></tr><tr><td>openvino</td><td>2025.1.0-18503-6fec06580ab-releases/2025/1</td></tr><tr><td>tensorrt</td><td>10.7.0.post1</td></tr><tr><td>gpu</td><td>NVIDIA GeForce RTX 3050 Laptop GPU</td></tr><tr><td>gpu_memory_mb</td><td>4096.0</td></tr><tr><td>nvidia_driver</td><td>615.78.08</td></tr></tbody></table>
+
+<h3>9.4 Fichiers produits</h3>
+<ul>
+  <li><code>results/*.json</code> : mesures, résumés, accuracy, matrice de confusion.</li>
+  <li><code>results/*_logits.npy</code> : logits par pipeline, pour l'accord des prédictions.</li>
+  <li><code>results/summary.csv</code> et <code>results/summary_table.csv</code> : tableaux de synthèse.</li>
+  <li><code>report/figures/*.png</code> : figures du rapport.</li>
+  <li><code>report/rapport.html</code> et <code>report/rapport.pdf</code> : ce document.</li>
+  <li><code>notebooks/*.ipynb</code> : notebooks exécutés avec sorties.</li>
+</ul>
+
+<p class="small muted">
+Rapport généré automatiquement à partir des résultats du dépôt. Les valeurs sont
+arrondies ; les JSON et CSV conservent la précision complète. Les figures et
+tableaux sont reproductibles via les commandes de la section 8.
+</p>
+
+</body>
+</html>

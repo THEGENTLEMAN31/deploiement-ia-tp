@@ -1,0 +1,38 @@
+ Container deploiement_ia-tp-run-7226832d7df1 Creating 
+ Container deploiement_ia-tp-run-7226832d7df1 Created 
+============================================================
+Exécution : notebooks/00_reference_pytorch.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/00_reference_pytorch.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 176573 bytes to notebooks/00_reference_pytorch.ipynb
+============================================================
+Exécution : notebooks/01_cpu_onnx_openvino.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/01_cpu_onnx_openvino.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 187624 bytes to notebooks/01_cpu_onnx_openvino.ipynb
+============================================================
+Exécution : notebooks/02_cpu_torchscript_compile.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/02_cpu_torchscript_compile.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 178388 bytes to notebooks/02_cpu_torchscript_compile.ipynb
+============================================================
+Exécution : notebooks/03_gpu_onnx_tensorrt.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/03_gpu_onnx_tensorrt.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 193264 bytes to notebooks/03_gpu_onnx_tensorrt.ipynb
+============================================================
+Exécution : notebooks/04_gpu_torch_compile.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/04_gpu_torch_compile.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 187549 bytes to notebooks/04_gpu_torch_compile.ipynb
+Tous les notebooks ont été exécutés.

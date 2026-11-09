@@ -1,0 +1,11 @@
+Python : 3.11.10
+PyTorch : 2.5.1+cu124
+CUDA disponible : True
+CUDA : 12.4
+cuDNN : 90100
+GPU : NVIDIA GeForce RTX 3050 Laptop GPU
+Mémoire GPU : 3.73 Go
+ONNX Runtime : 1.20.2
+Providers : ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider']
+OpenVINO : 2025.1.0-18503-6fec06580ab-releases/2025/1
+TensorRT : 10.7.0.post1

@@ -526,6 +526,7 @@ C.save_result(
     "03a_gpu_onnx_cuda", records, summary, logits_cuda, labels,
     device="cuda", backend="onnxruntime-cuda",
     notes="Contrôle ONNX Runtime CUDA, même graphe ONNX.",
+    extra={"energy_measurement": C.measure_gpu_energy(fn_cuda, x_cpu, "cuda")},
 )
 show("03a_gpu_onnx_cuda")
 '''),
@@ -549,6 +550,7 @@ trt_options = {
     "trt_max_workspace_size": 1 * 1024**3,
     "trt_builder_optimization_level": 3,
 }
+t_session = time.perf_counter()
 sess_trt = ort.InferenceSession(
     str(onnx_path),
     sess_options=so,
@@ -558,6 +560,7 @@ sess_trt = ort.InferenceSession(
         "CPUExecutionProvider",
     ],
 )
+print(f"création de la session TensorRT (moteur/cache) : {time.perf_counter() - t_session:.2f} s")
 print("providers :", sess_trt.get_providers())
 if "TensorrtExecutionProvider" not in sess_trt.get_providers():
     raise RuntimeError(
@@ -570,7 +573,7 @@ input_name = sess_trt.get_inputs()[0].name
 x_np = x_cpu.numpy()
 t0 = time.perf_counter()
 sess_trt.run(None, {input_name: x_np[:C.BATCH_SIZE]})
-print(f"construction du moteur + premier run : {time.perf_counter() - t0:.2f} s")
+print(f"premier run TensorRT : {time.perf_counter() - t0:.2f} s")
 
 fn_trt = C.make_onnx_fn(sess_trt, input_name)
 records, summary, logits_trt = C.run_benchmark(fn_trt, x_cpu, "cuda")
@@ -578,6 +581,7 @@ C.save_result(
     "03_gpu_onnx_tensorrt", records, summary, logits_trt, labels,
     device="cuda", backend="tensorrt",
     notes="ONNX -> TensorRT EP, FP16, cache de moteur, workspace 1 Go.",
+    extra={"energy_measurement": C.measure_gpu_energy(fn_trt, x_cpu, "cuda")},
 )
 show("03_gpu_onnx_tensorrt")
 '''),
@@ -657,6 +661,7 @@ C.save_result(
     "04a_gpu_torchscript", records, summary, logits_ts, labels,
     device="cuda", backend="torchscript-cuda",
     notes="TorchScript CUDA, contrôle.",
+    extra={"energy_measurement": C.measure_gpu_energy(fn_ts, x_cpu, "cuda")},
 )
 show("04a_gpu_torchscript")
 '''),
@@ -675,6 +680,7 @@ C.save_result(
     "04_gpu_torch_compile", records, summary, logits_compiled, labels,
     device="cuda", backend="torch.compile/inductor-cuda",
     notes="torch.compile mode=default, Inductor + Triton, FP32.",
+    extra={"energy_measurement": C.measure_gpu_energy(fn_compiled, x_cpu, "cuda")},
 )
 show("04_gpu_torch_compile")
 '''),

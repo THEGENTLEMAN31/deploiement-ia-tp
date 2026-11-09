@@ -1,0 +1,9 @@
+Device: cuda
+Threads CPU: 4
+CIFAR-10: train=50000, test=10000
+Sous-ensemble: 50 images -> artifacts/cifar10_subset.npz
+Features: train=(50000, 512), test=(10000, 512)
+  epoch 40/40 loss=0.3269 val_acc=0.8758
+Accuracy full test (10k): 0.8690
+Accuracy subset (50):    0.9400
+Artefacts écrits dans artifacts/.

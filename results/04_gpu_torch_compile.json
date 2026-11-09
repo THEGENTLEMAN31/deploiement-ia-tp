@@ -1,0 +1,369 @@
+{
+  "id": "04_gpu_torch_compile",
+  "label": "torch.compile (GPU)",
+  "device": "cuda",
+  "backend": "torch.compile/inductor-cuda",
+  "notes": "torch.compile mode=default, Inductor + Triton, FP32.",
+  "environment": {
+    "timestamp_utc": "2026-11-09T02:22:08.547905+00:00",
+    "python": "3.11.10",
+    "platform": "Linux-7.2.11-arch1-1-x86_64-with-glibc2.35",
+    "cpu": "Intel(R) Core(TM) i5-10200H CPU @ 2.40GHz",
+    "cpu_logical_cores": 8,
+    "cpu_threads_used": 4,
+    "torch": "2.5.1+cu124",
+    "cuda_available": true,
+    "cuda_version": "12.4",
+    "cudnn_version": 90100,
+    "batch_size": 10,
+    "repetitions": 5,
+    "warmup": 5,
+    "n_images": 50,
+    "torchvision": "0.20.1+cu124",
+    "onnx": "1.17.0",
+    "onnxruntime": "1.20.2",
+    "onnxruntime_providers": [
+      "TensorrtExecutionProvider",
+      "CUDAExecutionProvider",
+      "CPUExecutionProvider"
+    ],
+    "openvino": "2025.1.0-18503-6fec06580ab-releases/2025/1",
+    "tensorrt": "10.7.0.post1",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "gpu_memory_mb": 4096.0,
+    "nvidia_driver": "615.78.08"
+  },
+  "config": {
+    "batch_size": 10,
+    "repetitions": 5,
+    "warmup": 5,
+    "n_images": 50,
+    "image_size": 224,
+    "seed": 42
+  },
+  "records": [
+    {
+      "repetition": 1,
+      "n_images": 50,
+      "total_s": 0.05473461499786936,
+      "throughput_ips": 913.4987064757163,
+      "latency_ms_per_image": 1.0946922999573871,
+      "energy_cpu_j": 0.622007,
+      "energy_gpu_j": 17.295,
+      "energy_per_image_cpu_j": 0.012440139999999999,
+      "energy_per_image_gpu_j": 0.34590000000000004,
+      "max_gpu_mem_mb": 143.99267578125
+    },
+    {
+      "repetition": 2,
+      "n_images": 50,
+      "total_s": 0.054947455995716155,
+      "throughput_ips": 909.9602355366212,
+      "latency_ms_per_image": 1.098949119914323,
+      "energy_cpu_j": 0.692076,
+      "energy_gpu_j": 17.174,
+      "energy_per_image_cpu_j": 0.013841520000000001,
+      "energy_per_image_gpu_j": 0.34348,
+      "max_gpu_mem_mb": 143.99267578125
+    },
+    {
+      "repetition": 3,
+      "n_images": 50,
+      "total_s": 0.05466824601171538,
+      "throughput_ips": 914.6077229052679,
+      "latency_ms_per_image": 1.0933649202343076,
+      "energy_cpu_j": 0.564086,
+      "energy_gpu_j": 0.0,
+      "energy_per_image_cpu_j": 0.01128172,
+      "energy_per_image_gpu_j": null,
+      "max_gpu_mem_mb": 143.99267578125
+    },
+    {
+      "repetition": 4,
+      "n_images": 50,
+      "total_s": 0.055097873002523556,
+      "throughput_ips": 907.476047173544,
+      "latency_ms_per_image": 1.1019574600504711,
+      "energy_cpu_j": 0.646666,
+      "energy_gpu_j": 28.358,
+      "energy_per_image_cpu_j": 0.01293332,
+      "energy_per_image_gpu_j": 0.56716,
+      "max_gpu_mem_mb": 143.99267578125
+    },
+    {
+      "repetition": 5,
+      "n_images": 50,
+      "total_s": 0.05481591902207583,
+      "throughput_ips": 912.1437876443094,
+      "latency_ms_per_image": 1.0963183804415166,
+      "energy_cpu_j": 0.552916,
+      "energy_gpu_j": 0.0,
+      "energy_per_image_cpu_j": 0.01105832,
+      "energy_per_image_gpu_j": null,
+      "max_gpu_mem_mb": 143.99267578125
+    }
+  ],
+  "summary": {
+    "throughput_ips": {
+      "n": 5,
+      "mean": 911.5372999470917,
+      "std": 2.8558425326392243,
+      "min": 907.476047173544,
+      "max": 914.6077229052679,
+      "median": 912.1437876443094
+    },
+    "latency_ms_per_image": {
+      "n": 5,
+      "mean": 1.0970564361196011,
+      "std": 0.0034410551807032338,
+      "min": 1.0933649202343076,
+      "max": 1.1019574600504711,
+      "median": 1.0963183804415166
+    },
+    "total_s": {
+      "n": 5,
+      "mean": 0.054852821805980057,
+      "std": 0.0001720527590351617,
+      "min": 0.05466824601171538,
+      "max": 0.055097873002523556,
+      "median": 0.05481591902207583
+    },
+    "energy_cpu_j": {
+      "n": 5,
+      "mean": 0.6155502,
+      "std": 0.057960521548723165,
+      "min": 0.552916,
+      "max": 0.692076,
+      "median": 0.622007
+    },
+    "energy_gpu_j": {
+      "n": 5,
+      "mean": 12.5654,
+      "std": 12.336866287676138,
+      "min": 0.0,
+      "max": 28.358,
+      "median": 17.174
+    },
+    "energy_per_image_cpu_j": {
+      "n": 5,
+      "mean": 0.012311004,
+      "std": 0.0011592104309744633,
+      "min": 0.01105832,
+      "max": 0.013841520000000001,
+      "median": 0.012440139999999999
+    },
+    "energy_per_image_gpu_j": {
+      "n": 3,
+      "mean": 0.41884666666666664,
+      "std": 0.12844881367040076,
+      "min": 0.34348,
+      "max": 0.56716,
+      "median": 0.34590000000000004
+    },
+    "max_gpu_mem_mb": {
+      "n": 5,
+      "mean": 143.99267578125,
+      "std": 0.0,
+      "min": 143.99267578125,
+      "max": 143.99267578125,
+      "median": 143.99267578125
+    }
+  },
+  "accuracy_top1": 0.94,
+  "confusion_matrix": [
+    [
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      4,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      4,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      4,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+    ]
+  ],
+  "energy_measurement": {
+    "method": "NVML power.draw intégré sur passes répétées",
+    "passes": 20,
+    "repetitions": 3,
+    "n_images": 3000,
+    "idle_power_w": 52.736,
+    "samples_per_rep": [
+      109,
+      109,
+      108
+    ],
+    "repetitions_data": [
+      {
+        "repetition": 1,
+        "duration_s": 1.095428529981291,
+        "avg_power_w": 48.073513761467886,
+        "gpu_energy_j": 52.66109851076013,
+        "gpu_energy_j_50": 2.6330549255380062,
+        "gpu_energy_per_image_j": 0.052661098510760125,
+        "samples": 109
+      },
+      {
+        "repetition": 2,
+        "duration_s": 1.1017690369917545,
+        "avg_power_w": 59.61425688073394,
+        "gpu_energy_j": 65.68114239446531,
+        "gpu_energy_j_50": 3.2840571197232657,
+        "gpu_energy_per_image_j": 0.0656811423944653,
+        "samples": 109
+      },
+      {
+        "repetition": 3,
+        "duration_s": 1.0872039959940594,
+        "avg_power_w": 60.207351851851854,
+        "gpu_energy_j": 65.45767352155367,
+        "gpu_energy_j_50": 3.272883676077684,
+        "gpu_energy_per_image_j": 0.06545767352155367,
+        "samples": 108
+      }
+    ],
+    "gpu_energy_j": {
+      "n": 3,
+      "mean": 3.0633319071129854,
+      "std": 0.37267267422723843,
+      "min": 2.6330549255380062,
+      "max": 3.2840571197232657,
+      "median": 3.272883676077684
+    },
+    "gpu_energy_per_image_j": {
+      "n": 3,
+      "mean": 0.061266638142259695,
+      "std": 0.007453453484544763,
+      "min": 0.052661098510760125,
+      "max": 0.0656811423944653,
+      "median": 0.06545767352155367
+    },
+    "avg_power_w": {
+      "n": 3,
+      "mean": 55.965040831351224,
+      "std": 6.8406936806304595,
+      "min": 48.073513761467886,
+      "max": 60.207351851851854,
+      "median": 59.61425688073394
+    },
+    "gpu_energy_j_50": {
+      "n": 3,
+      "mean": 3.0633319071129854,
+      "std": 0.37267267422723843,
+      "min": 2.6330549255380062,
+      "max": 3.2840571197232657,
+      "median": 3.272883676077684
+    },
+    "normalization": "gpu_energy_j et gpu_energy_j_50 = énergie pour 50 images"
+  }
+}

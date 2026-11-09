@@ -1,0 +1,2 @@
+Rapport HTML écrit : /workspace/report/rapport.html
+Pour le PDF : imprimer ce fichier avec Chromium/Playwright (voir README).

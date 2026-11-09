@@ -42,12 +42,40 @@ NOTEBOOKS = {
 
 
 def md_to_html(text: str) -> str:
-    """Rendu markdown minimal (titres, gras, code, listes, tableaux simples)."""
+    """Rendu markdown minimal (titres, gras, code, listes, tableaux)."""
     lines = text.splitlines()
     out: list[str] = []
     in_list = False
-    for line in lines:
-        stripped = line.strip()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        # Tableau markdown : | a | b |\n|---|---|\n| 1 | 2 |
+        if (
+            stripped.startswith("|")
+            and i + 1 < len(lines)
+            and lines[i + 1].strip().startswith("|")
+            and "---" in lines[i + 1]
+        ):
+            if in_list:
+                out.append("</ul>")
+                in_list = False
+            header = [c.strip() for c in stripped.strip("|").split("|")]
+            i += 2
+            rows = []
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                rows.append([c.strip() for c in lines[i].strip().strip("|").split("|")])
+                i += 1
+            out.append(
+                "<table class='md-table'><thead><tr>"
+                + "".join(f"<th>{inline_md(h)}</th>" for h in header)
+                + "</tr></thead><tbody>"
+                + "".join(
+                    "<tr>" + "".join(f"<td>{inline_md(c)}</td>" for c in row) + "</tr>"
+                    for row in rows
+                )
+                + "</tbody></table>"
+            )
+            continue
         if stripped.startswith("#"):
             level = len(stripped) - len(stripped.lstrip("#"))
             content = stripped[level:].strip()
@@ -60,12 +88,6 @@ def md_to_html(text: str) -> str:
                 out.append("<ul>")
                 in_list = True
             out.append(f"<li>{inline_md(stripped[2:])}</li>")
-        elif stripped.startswith("|") and stripped.endswith("|"):
-            # Les tableaux markdown sont laissés en texte compact.
-            if in_list:
-                out.append("</ul>")
-                in_list = False
-            out.append(f"<div class='md-table'>{html.escape(stripped)}</div>")
         elif not stripped:
             if in_list:
                 out.append("</ul>")
@@ -75,6 +97,7 @@ def md_to_html(text: str) -> str:
                 out.append("</ul>")
                 in_list = False
             out.append(f"<p>{inline_md(stripped)}</p>")
+        i += 1
     if in_list:
         out.append("</ul>")
     return "\n".join(out)
@@ -207,8 +230,10 @@ def build_page(nb_path: Path, title: str, result_ids: list[str]) -> Path:
   .markdown p {{ margin: 4px 0; }}
   .markdown code {{ background: #eef2f6; padding: 1px 4px; border-radius: 3px;
                     font-family: "DejaVu Sans Mono", monospace; font-size: 11px; }}
-  .md-table {{ font-family: "DejaVu Sans Mono", monospace; font-size: 10.5px;
-               color: #5b6770; margin: 2px 0; }}
+  table.md-table {{ border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 12px; }}
+  table.md-table th, table.md-table td {{ border: 1px solid #d8dee4; padding: 5px 8px;
+                                           text-align: left; }}
+  table.md-table th {{ background: #eef5fb; color: #1f3a5f; }}
 </style></head>
 <body>
 <div class="page">

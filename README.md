@@ -50,10 +50,10 @@ Cette adaptation est documentée dans le rapport. Elle ne biaise pas la comparai
 des pipelines : le graphe et les poids sont identiques, seules les couches
 d'optimisation changent.
 
-Accuracy obtenue (à compléter après exécution) :
+Accuracy obtenue :
 
-- test complet CIFAR-10 (10 000 images) : **voir `artifacts/prepare_metadata.json`** ;
-- sous-ensemble de 50 images : **voir `results/00_reference_pytorch_cpu.json`**.
+- test complet CIFAR-10 (10 000 images) : **86,9 %** ;
+- sous-ensemble de 50 images : **94,0 %** (47/50).
 
 ---
 
@@ -133,6 +133,34 @@ toujours, seule l'énergie CPU devient indisponible.
 Les notebooks 00, 01 et 02 fonctionnent sur CPU. Les notebooks 03 et 04 nécessitent
 un GPU NVIDIA. Sur une machine sans GPU, on peut exécuter uniquement les pipelines
 CPU et adapter le rapport.
+
+### Installation de TensorRT (si pypi.nvidia.com est lent)
+
+Le paquet TensorRT officiel pèse ~2 Go et est hébergé sur `pypi.nvidia.com`.
+Si le téléchargement est trop lent, télécharger le wheel des bibliothèques et le
+placer dans `.build-cache/` avant `docker compose build` :
+
+```bash
+mkdir -p .build-cache
+curl -L -C - -o .build-cache/tensorrt_cu12_libs-10.7.0.post1-py2.py3-none-manylinux_2_17_x86_64.whl \
+  'https://pypi.nvidia.com/tensorrt-cu12-libs/tensorrt_cu12_libs-10.7.0.post1-py2.py3-none-manylinux_2_17_x86_64.whl'
+curl -L -O --output-dir .build-cache \
+  'https://files.pythonhosted.org/packages/78/a1/ada33f90b89a96fa0a4f72b5ce642242de71b2fdefb5c1f61babf97e2335/tensorrt_cu12_bindings-10.7.0.post1-cp311-none-manylinux_2_17_x86_64.whl'
+```
+
+Le `Dockerfile` détecte automatiquement ces fichiers et les installe sans passer
+par le téléchargement NVIDIA. Sinon, il retombe sur `pip install tensorrt==10.7.0.post1`.
+
+De même, le wheel ONNX Runtime GPU (~279 Mo) peut être pré-téléchargé pour éviter
+un timeout réseau pendant le build :
+
+```bash
+curl -L -o .build-cache/onnxruntime_gpu-1.20.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl \
+  'https://files.pythonhosted.org/packages/5e/53/9341b875b0ed29953485b43713e94b335a449c3770fed67dddb3c9b84af0/onnxruntime_gpu-1.20.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl'
+```
+
+Le `Dockerfile` l'utilise s'il est présent, sinon il télécharge depuis PyPI avec
+des retries explicites.
 
 ---
 
@@ -214,19 +242,59 @@ l'inférence, pas le décodage ni le redimensionnement.
 
 ## 8. Résultats
 
-Les résultats complets sont dans `results/` et `report/rapport.pdf`. Les figures
-principales sont :
+Mesures finales (50 images, batch 10, 5 répétitions, station locale) :
+
+| Pipeline | Device | Débit (img/s) | Latence (ms/img) | Top-1 | Énergie/image |
+|---|---|---:|---:|---:|---:|
+| **ONNX → OpenVINO** | CPU | 32,82 ± 0,18 | 30,474 | 94,0 % | 0,514 J (RAPL) |
+| **torch.compile** | CPU | 48,87 ± 3,27 | 20,538 | 94,0 % | 0,453 J (RAPL) |
+| **ONNX → TensorRT (FP16)** | GPU | **2 182,71 ± 45,36** | **0,458** | 94,0 % | **0,016 J** (NVML) |
+| **torch.compile** | GPU | 911,54 ± 2,86 | 1,097 | 94,0 % | 0,061 J (NVML) |
+| PyTorch eager (réf.) | CPU | 45,18 ± 2,61 | 22,196 | 94,0 % | 0,472 J (RAPL) |
+| ONNX Runtime (contrôle) | CPU | 64,49 ± 5,60 | 15,604 | 94,0 % | 0,346 J (RAPL) |
+| TorchScript (contrôle) | CPU | 56,31 ± 3,76 | 17,826 | 94,0 % | 0,391 J (RAPL) |
+| PyTorch eager (réf.) | GPU | 810,71 ± 3,43 | 1,233 | 94,0 % | 0,070 J (NVML) |
+| ONNX Runtime CUDA (contrôle) | GPU | 800,10 ± 1,49 | 1,250 | 94,0 % | 0,072 J (NVML) |
+| TorchScript CUDA (contrôle) | GPU | 934,97 ± 6,15 | 1,070 | 94,0 % | 0,061 J (NVML) |
+
+**Principales conclusions :**
+
+- **Qualité préservée** : les 10 configurations obtiennent exactement 94,0 %
+  (47/50) et l'accord des prédictions avec PyTorch est de **100 %** sur les 50
+  images. Aucune optimisation ne dégrade les décisions.
+- **CPU** : ONNX Runtime (64,5 img/s) et TorchScript (56,3) dépassent PyTorch eager
+  (45,2) ; `torch.compile` suit (48,9). En revanche, **OpenVINO est plus lent**
+  (32,8 img/s) dans nos conditions (4 threads, batch 10, station partagée) :
+  c'est un résultat expérimental honnête, qui montre qu'un runtime « optimisé »
+  n'est pas toujours plus rapide sur tout matériel.
+- **GPU** : **TensorRT est le grand gagnant** avec 2 182,7 img/s (×2,69 vs eager,
+  0,458 ms/image), loin devant TorchScript (935,0), `torch.compile` (911,5),
+  PyTorch eager (810,7) et ONNX Runtime CUDA (800,1). Le gain vient de la fusion
+  d'opérateurs, des kernels spécialisés et du FP16.
+- **Énergie** : le GPU est bien plus économe **par image** (0,016 à 0,072 J) que
+  le CPU (0,35 à 0,51 J), mais la puissance instantanée du GPU est beaucoup plus
+  élevée. Les deux sources (RAPL vs NVML) ne sont pas comparables en valeur
+  absolue ; elles servent à comparer les pipelines d'un même device.
+- **Stabilité** : coefficients de variation globalement faibles à modérés
+  (jusqu'à ~6,7 % pour `torch.compile` CPU ; ~2,1 % pour TensorRT) ; les
+  répétitions et les barres d'erreur sont dans le rapport. La station exécutait
+  d'autres conteneurs en arrière-plan, ce qui explique une partie du bruit CPU.
+
+Les résultats complets sont dans `results/` et `report/rapport.pdf` (24 pages A4).
+Les figures principales sont :
 
 - `report/figures/fig_throughput.png` — débit CPU et GPU ;
 - `report/figures/fig_latency.png` — latence ;
 - `report/figures/fig_accuracy.png` — Top-1 ;
+- `report/figures/fig_confusion.png` — matrice de confusion ;
 - `report/figures/fig_energy.png` — énergie par image ;
 - `report/figures/fig_variability.png` — variabilité sur 5 répétitions ;
 - `report/figures/fig_speedup.png` — gain vs PyTorch eager ;
-- `report/figures/fig_agreement.png` — accord des prédictions.
+- `report/figures/fig_agreement.png` — accord des prédictions ;
+- `report/figures/fig_pipelines.png` — schéma des quatre chaînes.
 
-**À compléter après exécution** : reprendre les valeurs de `results/summary.csv`
-et le résumé du rapport.
+Les captures d'écran des notebooks exécutés et de l'environnement Docker/GPU sont
+dans `report/screenshots/`.
 
 ---
 
@@ -250,6 +318,8 @@ et le résumé du rapport.
   un ou deux exemples. L'accord de prédictions est plus robuste.
 - Le linear probe est une adaptation nécessaire à l'incohérence 1000/10 classes.
 - L'énergie CPU RAPL est celle du package, pas du seul modèle.
+- La station exécutait d'autres conteneurs en arrière-plan (Hadoop, listmonk) ;
+  l'écart-type sur 5 répétitions permet de vérifier la robustesse des conclusions.
 - TensorRT est utilisé via l'Execution Provider d'ONNX Runtime, pas via `trtexec`.
 
 ---

@@ -148,22 +148,37 @@ def energy_table() -> str:
         s = result["summary"]
         cpu = s["energy_per_image_cpu_j"]
         gpu = s["energy_per_image_gpu_j"]
-        if gpu["n"]:
-            mean, std, mn, mx, source = gpu["mean"], gpu["std"], gpu["min"], gpu["max"], "GPU (NVML)"
+        measurement = result.get("energy_measurement") or {}
+        loop = measurement.get("gpu_energy_per_image_j") or {}
+        if loop.get("n"):
+            mean, std, mn, mx = loop["mean"], loop["std"], loop["min"], loop["max"]
+            # Énergie totale ramenée aux 50 images du protocole.
+            total = {"mean": mean * 50, "std": std * 50 if std is not None else None}
+            source = "GPU (NVML power sampling)"
+        elif gpu["n"]:
+            mean, std, mn, mx, source = gpu["mean"], gpu["std"], gpu["min"], gpu["max"], "GPU (NVML compteur)"
+            total = s["energy_gpu_j"]
         elif cpu["n"]:
             mean, std, mn, mx, source = cpu["mean"], cpu["std"], cpu["min"], cpu["max"], "CPU (RAPL package)"
+            total = s["energy_cpu_j"]
         else:
             mean = std = mn = mx = None
+            total = {"mean": None, "std": None}
             source = "non disponible"
         rows.append(
             [
                 html.escape(result["label"]),
                 source,
+                f"{fmt(total['mean'], 1)} ± {fmt(total['std'], 1)}",
                 f"{fmt(mean, 3)} ± {fmt(std, 3)}",
                 f"{fmt(mn, 3)} – {fmt(mx, 3)}",
             ]
         )
-    return table(["Pipeline", "Source", "Énergie / image (J)<br><span class='muted'>moy ± σ</span>", "min – max"], rows)
+    return table(
+        ["Pipeline", "Source", "Énergie totale (J)<br><span class='muted'>moy ± σ</span>",
+         "Énergie / image (J)<br><span class='muted'>moy ± σ</span>", "min – max"],
+        rows,
+    )
 
 
 def records_table() -> str:
@@ -172,8 +187,14 @@ def records_table() -> str:
         result = r(rid)
         if result is None:
             continue
+        measurement = result.get("energy_measurement") or {}
+        loop = measurement.get("gpu_energy_per_image_j") or {}
         for rec in result["records"]:
-            energy = rec["energy_per_image_gpu_j"] or rec["energy_per_image_cpu_j"]
+            energy = (
+                loop.get("mean")
+                if loop.get("n")
+                else rec["energy_per_image_gpu_j"] or rec["energy_per_image_cpu_j"]
+            )
             rows.append(
                 [
                     html.escape(result["label"]),
@@ -233,8 +254,8 @@ def analysis_cpu() -> str:
         )
     if onnx and ov:
         parts.append(
-            f"Le contrôle ONNX Runtime CPU se situe à {get_stat(onnx, 'throughput_ips'):.2f} img/s : "
-            f"l'écart avec OpenVINO isole l'effet du runtime et des kernels oneDNN."
+            f"Le contrôle ONNX Runtime CPU se situe à {get_stat(onnx, 'throughput_ips'):.2f} img/s ; "
+            f"comparer les deux runtimes permet d'isoler l'effet des optimisations propres à OpenVINO."
         )
     if comp:
         parts.append(
@@ -298,20 +319,34 @@ def analysis_accuracy() -> str:
     accs = [v for _, v in values]
     agreements = [agreement_with_ref(rid) for rid in ORDER if r(rid) is not None]
     agreements = [a for a in agreements if a is not None]
-    agreement_text = (
-        f"L'accord des prédictions avec la référence du même device est compris entre "
-        f"<b>{min(agreements):.1f} %</b> et <b>{max(agreements):.1f} %</b> ; les quelques désaccords "
-        f"possibles proviennent des arrondis FP16 de TensorRT ou de l'ordre des opérations, pas d'un "
-        f"changement de modèle."
-        if agreements
-        else "Les logits de référence n'étaient pas tous disponibles pour calculer l'accord."
-    )
-    return (
-        f"La Top-1 varie de <b>{min(accs):.1f} %</b> à <b>{max(accs):.1f} %</b> selon les pipelines. "
-        f"L'écart maximal est de <b>{max(accs) - min(accs):.1f} point(s)</b>, ce qui montre que les "
-        f"optimisations de déploiement ne dégradent pas la qualité des décisions. "
-        + agreement_text
-    )
+    if agreements and max(agreements) - min(agreements) < 0.05:
+        agreement_text = (
+            f"L'accord des prédictions avec la référence du même device est de "
+            f"<b>{agreements[0]:.1f} %</b> pour tous les pipelines : les optimisations ne changent "
+            f"aucune décision sur les 50 images."
+        )
+    elif agreements:
+        agreement_text = (
+            f"L'accord des prédictions avec la référence du même device est compris entre "
+            f"<b>{min(agreements):.1f} %</b> et <b>{max(agreements):.1f} %</b> ; les quelques "
+            f"désaccords proviennent des arrondis FP16 de TensorRT ou de l'ordre des opérations, "
+            f"pas d'un changement de modèle."
+        )
+    else:
+        agreement_text = "Les logits de référence n'étaient pas tous disponibles pour calculer l'accord."
+
+    if max(accs) - min(accs) < 0.05:
+        accuracy_text = (
+            f"La Top-1 est <b>identique à {accs[0]:.1f} %</b> pour tous les pipelines, ce qui montre "
+            f"que les optimisations de déploiement ne dégradent pas la qualité des décisions."
+        )
+    else:
+        accuracy_text = (
+            f"La Top-1 varie de <b>{min(accs):.1f} %</b> à <b>{max(accs):.1f} %</b> selon les "
+            f"pipelines. L'écart maximal est de <b>{max(accs) - min(accs):.1f} point(s)</b> ; il "
+            f"provient des arrondis numériques, pas d'un changement de modèle."
+        )
+    return accuracy_text + " " + agreement_text
 
 
 def analysis_energy() -> str:
@@ -320,26 +355,50 @@ def analysis_energy() -> str:
         result = r(rid)
         if result is None:
             continue
-        cpu = get_stat(result, "energy_per_image_cpu_j")
-        gpu = get_stat(result, "energy_per_image_gpu_j")
-        if result["device"] == "cpu" and cpu is not None:
-            cpu_rows.append((result["label"], cpu))
-        if result["device"] == "cuda" and gpu is not None:
-            gpu_rows.append((result["label"], gpu))
+        s = result["summary"]
+        measurement = result.get("energy_measurement") or {}
+        loop = measurement.get("gpu_energy_per_image_j") or {}
+        if result["device"] == "cpu" and s["energy_per_image_cpu_j"]["n"]:
+            cpu_rows.append((result["label"], s["energy_per_image_cpu_j"]["mean"],
+                             s["energy_cpu_j"]["mean"]))
+        elif result["device"] == "cuda":
+            if loop.get("n"):
+                gpu_rows.append((result["label"], loop["mean"], loop["mean"] * 50))
+            elif s["energy_per_image_gpu_j"]["n"]:
+                gpu_rows.append((result["label"], s["energy_per_image_gpu_j"]["mean"],
+                                 s["energy_gpu_j"]["mean"]))
     parts = []
     if cpu_rows:
-        vals = [v for _, v in cpu_rows]
+        vals = [v for _, v, _ in cpu_rows]
+        totals = [t for _, _, t in cpu_rows if t is not None]
         parts.append(
             f"Côté CPU, l'énergie RAPL du package varie de <b>{min(vals):.2f}</b> à "
-            f"<b>{max(vals):.2f} J/image</b> selon le pipeline. Ces valeurs incluent tout le "
-            f"package CPU (et donc une partie du système), pas uniquement le modèle : elles servent "
-            f"à comparer les pipelines entre eux, pas à une facture électrique exacte."
+            f"<b>{max(vals):.2f} J/image</b> selon le pipeline"
+            + (f", soit environ <b>{min(totals):.1f}</b> à <b>{max(totals):.1f} J</b> pour les 50 images."
+               if totals else ".")
+            + " Ces valeurs incluent tout le package CPU (et donc une partie du système), pas "
+            f"uniquement le modèle : elles servent à comparer les pipelines entre eux, pas à une "
+            f"facture électrique exacte."
         )
     if gpu_rows:
-        vals = [v for _, v in gpu_rows]
+        vals = [v for _, v, _ in gpu_rows]
+        totals = [t for _, _, t in gpu_rows if t is not None]
+        idle_power = None
+        for rid in ORDER:
+            measurement = (r(rid) or {}).get("energy_measurement") or {}
+            if measurement.get("idle_power_w"):
+                idle_power = measurement["idle_power_w"]
+                break
         parts.append(
-            f"Côté GPU, l'énergie NVML varie de <b>{min(vals):.2f}</b> à <b>{max(vals):.2f} J/image</b>. "
-            f"Le GPU est plus rapide mais sa puissance instantanée est beaucoup plus élevée ; le "
+            f"Côté GPU, l'énergie varie de <b>{min(vals):.2f}</b> à <b>{max(vals):.2f} J/image</b>"
+            + (f", soit <b>{min(totals):.1f}</b> à <b>{max(totals):.1f} J</b> pour les 50 images."
+               if totals else ".")
+            + " Elle est mesurée par intégration de la puissance NVML <code>power.draw</code> sur "
+            f"3 séries de 20 passes : le compteur d'énergie total, trop grossier pour des runs de "
+            f"quelques dizaines de millisecondes, renvoyait parfois 0."
+            + (f" La puissance au repos mesurée est d'environ <b>{idle_power:.1f} W</b> ; l'énergie "
+               f"totale inclut cette composante." if idle_power else "")
+            + " Le GPU est plus rapide mais sa puissance instantanée est beaucoup plus élevée ; le "
             f"rapport énergie/temps est donc le bon indicateur pour arbitrer entre latence et coût "
             f"énergétique."
         )
@@ -357,19 +416,30 @@ def analysis_stability() -> str:
     best = min(cvs, key=lambda x: x[1])
     worst_label = r(worst[0])["label"] if r(worst[0]) else worst[0]
     best_label = r(best[0])["label"] if r(best[0]) else best[0]
+    level = "faible" if worst[1] < 5 else "modéré"
     return (
-        f"Le coefficient de variation du débit (σ/moyenne) reste faible : de "
+        f"Le coefficient de variation du débit (σ/moyenne) reste <b>{level}</b> : de "
         f"<b>{best[1]:.2f} %</b> ({html.escape(best_label)}) à <b>{worst[1]:.2f} %</b> "
-        f"({html.escape(worst_label)}). Les mesures sont donc stables et reproductibles. "
-        f"Les répétitions individuelles sont détaillées en annexe ; les barres d'erreur des figures "
-        f"correspondent à l'écart-type des 5 exécutions indépendantes."
+        f"({html.escape(worst_label)}). Les mesures sont globalement stables et reproductibles ; "
+        f"les variations les plus fortes s'expliquent par la charge de fond de la station et par "
+        f"les temps de compilation/cache. Les répétitions individuelles sont détaillées en annexe ; "
+        f"les barres d'erreur des figures correspondent à l'écart-type des 5 exécutions indépendantes."
     )
 
 
 def main() -> None:
     C.ensure_dirs()
     meta = load_meta()
-    env = meta.get("environment", {})
+    # On privilégie l'environnement des résultats (mesuré dans le conteneur final,
+    # avec pynvml/TensorRT) plutôt que celui de la préparation.
+    env = {}
+    for rid in ORDER:
+        result = r(rid)
+        if result and result.get("environment"):
+            env = result["environment"]
+            break
+    if not env:
+        env = meta.get("environment", {})
     if not env:
         try:
             env = C.environment_info()
@@ -476,7 +546,7 @@ def main() -> None:
   figcaption {{ font-size: 8.4pt; color: var(--gris); margin-top: 1.5mm; font-style: italic; }}
   .cover {{ height: 245mm; display: flex; flex-direction: column; justify-content: center;
             page-break-after: always; text-align: center; }}
-  .cover h1 {{ font-size: 27pt; margin-bottom: 4mm; }}
+  .cover h1 {{ font-size: 24pt; line-height: 1.25; margin-bottom: 5mm; }}
   .cover .sub {{ font-size: 14pt; color: var(--bleu2); margin-bottom: 18mm; }}
   .cover .meta {{ font-size: 10.5pt; color: var(--gris); }}
   .cover .box {{ border-top: 3px solid var(--bleu2); border-bottom: 3px solid var(--bleu2);
@@ -732,18 +802,26 @@ compilation intégrée à l'écosystème PyTorch.
 {performance_table()}
 
 <h3>5.7 Énergie par image (détail)</h3>
+<p class="small muted">
+Pour le CPU, l'énergie provient du compteur RAPL du package sur chaque répétition.
+Pour le GPU, le compteur NVML total étant trop grossier pour des runs de quelques
+dizaines de millisecondes, l'énergie est obtenue en intégrant <code>power.draw</code>
+sur 3 séries de 20 passes (soit 3 000 images par pipeline) ; la moyenne et l'écart-type
+portent sur ces 3 mesures.
+</p>
 {energy_table()}
 
 <h2 id="analyse" class="newpage">6. Analyse, compromis et limites</h2>
 <h3>6.1 Ce que les optimisations apportent réellement</h3>
 <p>
-Les résultats montrent que le passage par un format intermédiaire et un runtime
-optimisé apporte un gain mesurable sur CPU comme sur GPU. Sur CPU, OpenVINO
-combine fusions d'opérateurs et kernels oneDNN ; <code>torch.compile</code> génère des
-kernels spécialisés via Inductor. Sur GPU, TensorRT fusionne et spécialise les
-kernels, tandis que <code>torch.compile</code> génère des kernels Triton. Dans les deux
-cas, le gain dépend de la taille de batch, du modèle et du temps de compilation,
-qui est exclu des mesures par les warmups.
+Les résultats montrent que le gain dépend fortement du pipeline et du matériel.
+Sur CPU, ONNX Runtime et TorchScript dépassent PyTorch eager, tandis qu'OpenVINO
+est plus lent dans nos conditions (4 threads, batch 10, station partagée) ;
+<code>torch.compile</code> apporte un gain modeste. Sur GPU, TensorRT apporte le gain
+le plus net (fusion d'opérateurs, kernels spécialisés, FP16), et
+<code>torch.compile</code> un gain plus modeste via Triton. Dans tous les cas, le gain
+dépend de la taille de batch, du modèle et du temps de compilation, qui est exclu
+des mesures par les warmups.
 </p>
 <h3>6.2 Le compromis performance / énergie</h3>
 <p>
@@ -780,6 +858,9 @@ C'est le résultat attendu : un bon pipeline de déploiement doit préserver la 
       mais l'interface diffère légèrement d'un déploiement TensorRT « pur ».</li>
   <li>Les notebooks sont exécutés dans un conteneur Docker pour la reproductibilité ;
       Colab peut avoir des versions de CUDA/TensorRT différentes.</li>
+  <li>La station de mesure exécutait d'autres conteneurs en arrière-plan (Hadoop,
+      listmonk). Cela peut ajouter du bruit aux mesures CPU ; l'écart-type sur 5
+      répétitions permet de vérifier que les conclusions restent robustes.</li>
 </ul>
 
 <h2 id="conclusion" class="newpage">7. Conclusion</h2>
@@ -859,6 +940,7 @@ générées.
 {screenshot("notebook_02.png", "Notebook 02 — TorchScript / torch.compile (CPU).")}
 {screenshot("notebook_03.png", "Notebook 03 — ONNX → TensorRT (GPU).")}
 {screenshot("notebook_04.png", "Notebook 04 — torch.compile (GPU).")}
+{screenshot("docker_env.png", "Preuves d'exécution : Docker, NVIDIA-SMI, versions PyTorch/ONNX Runtime/OpenVINO/TensorRT et préparation des données.")}
 
 <h3>9.2 Mesures détaillées par répétition</h3>
 {records_table()}

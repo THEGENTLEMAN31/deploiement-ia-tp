@@ -1,0 +1,125 @@
+<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>Preuves d'exécution — Docker / GPU</title>
+<style>
+  body { background: #eef1f5; margin: 0; font-family: "DejaVu Sans", Arial, sans-serif; }
+  .wrap { width: 1200px; margin: 0 auto; padding: 24px; }
+  h1 { color: #1f3a5f; font-size: 26px; margin: 0 0 6px 0; }
+  .sub { color: #5b6770; margin-bottom: 18px; }
+  .term { background: #111820; border-radius: 8px; margin-bottom: 18px;
+           box-shadow: 0 6px 18px rgba(0,0,0,.18); overflow: hidden; }
+  .bar { background: #1f2933; padding: 8px 12px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
+  .title { color: #a9b7c6; font-size: 12px; margin-left: 10px; }
+  pre { color: #d7e3f0; margin: 0; padding: 14px 16px; font-family: "DejaVu Sans Mono", monospace;
+         font-size: 11.5px; line-height: 1.45; white-space: pre-wrap; }
+</style></head><body><div class="wrap">
+<h1>Preuves d'exécution — Docker, GPU et notebooks</h1>
+<div class="sub">Captures textuelles produites pendant l'exécution réelle du TP.</div>
+
+                <div class="term">
+                  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span>
+                  <span class="dot green"></span><span class="title">Docker et GPU — docker-version.txt</span></div>
+                  <pre>Docker version 29.9.2, build a82e528901
+Docker Compose version 5.6.1</pre>
+                </div>
+                
+                <div class="term">
+                  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span>
+                  <span class="dot green"></span><span class="title">Docker et GPU — nvidia-smi.txt</span></div>
+                  <pre>Mon Nov  9 02:24:48 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 615.78.08              KMD Version: 615.78.08     CUDA UMD Version: 13.4     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 3050 ...    Off |   00000000:01:00.0 Off |                  N/A |
+| N/A   54C    P8              6W /   80W |      18MiB /   4096MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A             614      G   /usr/lib/Xorg                             4MiB |
++-----------------------------------------------------------------------------------------+</pre>
+                </div>
+                
+                <div class="term">
+                  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span>
+                  <span class="dot green"></span><span class="title">Docker et GPU — torch-env.txt</span></div>
+                  <pre>Python : 3.11.10
+PyTorch : 2.5.1+cu124
+CUDA disponible : True
+CUDA : 12.4
+cuDNN : 90100
+GPU : NVIDIA GeForce RTX 3050 Laptop GPU
+Mémoire GPU : 3.73 Go
+ONNX Runtime : 1.20.2
+Providers : [&#x27;TensorrtExecutionProvider&#x27;, &#x27;CUDAExecutionProvider&#x27;, &#x27;CPUExecutionProvider&#x27;]
+OpenVINO : 2025.1.0-18503-6fec06580ab-releases/2025/1
+TensorRT : 10.7.0.post1</pre>
+                </div>
+                
+                <div class="term">
+                  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span>
+                  <span class="dot green"></span><span class="title">Préparation des données — prepare.txt</span></div>
+                  <pre>Device: cuda
+Threads CPU: 4
+CIFAR-10: train=50000, test=10000
+Sous-ensemble: 50 images -&gt; artifacts/cifar10_subset.npz
+Features: train=(50000, 512), test=(10000, 512)
+  epoch 40/40 loss=0.3269 val_acc=0.8758
+Accuracy full test (10k): 0.8690
+Accuracy subset (50):    0.9400
+Artefacts écrits dans artifacts/.</pre>
+                </div>
+                
+                <div class="term">
+                  <div class="bar"><span class="dot red"></span><span class="dot yellow"></span>
+                  <span class="dot green"></span><span class="title">Exécution des notebooks — notebooks.txt</span></div>
+                  <pre>Container deploiement_ia-tp-run-7226832d7df1 Creating 
+ Container deploiement_ia-tp-run-7226832d7df1 Created 
+============================================================
+Exécution : notebooks/00_reference_pytorch.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/00_reference_pytorch.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 176573 bytes to notebooks/00_reference_pytorch.ipynb
+============================================================
+Exécution : notebooks/01_cpu_onnx_openvino.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/01_cpu_onnx_openvino.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 187624 bytes to notebooks/01_cpu_onnx_openvino.ipynb
+============================================================
+Exécution : notebooks/02_cpu_torchscript_compile.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/02_cpu_torchscript_compile.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 178388 bytes to notebooks/02_cpu_torchscript_compile.ipynb
+============================================================
+Exécution : notebooks/03_gpu_onnx_tensorrt.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/03_gpu_onnx_tensorrt.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 193264 bytes to notebooks/03_gpu_onnx_tensorrt.ipynb
+============================================================
+Exécution : notebooks/04_gpu_torch_compile.ipynb
+============================================================
+[NbConvertApp] Converting notebook notebooks/04_gpu_torch_compile.ipynb to notebook
+/opt/conda/lib/python3.11/site-packages/nbformat/validator.py:434: MissingIDFieldWarning: Cell is missing an id field, this will become a hard error in future nbformat versions. You may want to use `normalize()` on your notebooks before validations (available since nbformat 5.1.4). Previous versions of nbformat are fixing this issue transparently, and will stop doing so in the future.
+  _validate(nbdict, ref, version, version_minor, relax_add_props)
+[NbConvertApp] Writing 187549 bytes to notebooks/04_gpu_torch_compile.ipynb
+Tous les notebooks ont été exécutés.</pre>
+                </div>
+                
+</div></body></html>

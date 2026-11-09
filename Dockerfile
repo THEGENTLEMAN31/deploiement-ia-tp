@@ -26,11 +26,18 @@ RUN pip install --no-cache-dir \
 # - tensorrt              : moteur TensorRT (via l'Execution Provider d'ONNX Runtime)
 # - openvino              : runtime CPU Intel
 # - jupyter/nbconvert     : exécution et export des notebooks
-RUN pip install --no-cache-dir \
+# ONNX Runtime GPU : wheel de ~291 Mo. On l'installe depuis .build-cache/ si
+# présent (téléchargement manuel), sinon depuis PyPI avec des retries explicites.
+RUN --mount=type=bind,source=.build-cache,target=/tmp/build-cache \
+    if [ -f /tmp/build-cache/onnxruntime_gpu-*.whl ]; then \
+        pip install --no-cache-dir /tmp/build-cache/onnxruntime_gpu-*.whl; \
+    else \
+        pip install --no-cache-dir --timeout 120 --retries 10 onnxruntime-gpu==1.20.2; \
+    fi
+
+RUN pip install --no-cache-dir --timeout 120 --retries 10 \
         numpy==1.26.4 \
         onnx==1.17.0 \
-        onnxruntime-gpu==1.20.2 \
-        tensorrt==10.7.0.post1 \
         openvino==2025.1.0 \
         pandas==2.2.3 \
         matplotlib==3.9.2 \
@@ -42,6 +49,25 @@ RUN pip install --no-cache-dir \
         nbconvert==7.16.4 \
         nbclient==0.10.0 \
         ipykernel==6.29.5
+
+# TensorRT : les bibliothèques pèsent ~2 Go. Si le wheel est présent dans
+# .build-cache/, on l'installe localement (utile quand pypi.nvidia.com est lent) ;
+# sinon on laisse pip télécharger le paquet officiel. Le bind mount évite de
+# conserver le wheel de 2 Go dans les couches de l'image.
+RUN --mount=type=bind,source=.build-cache,target=/tmp/build-cache \
+    if [ -f /tmp/build-cache/tensorrt_cu12_libs-10.7.0.post1-py2.py3-none-manylinux_2_17_x86_64.whl ]; then \
+        pip install --no-cache-dir --no-deps /tmp/build-cache/tensorrt_cu12_libs-*.whl; \
+        pip install --no-cache-dir --no-deps /tmp/build-cache/tensorrt_cu12_bindings-*.whl \
+            || pip install --no-cache-dir --no-deps tensorrt-cu12-bindings==10.7.0.post1; \
+    else \
+        pip install --no-cache-dir --timeout 120 --retries 10 tensorrt==10.7.0.post1; \
+    fi && \
+    rm -f /opt/conda/lib/python3.11/site-packages/tensorrt_libs/libnvinfer_builder_resource_win.so.10.7.0
+# Le module Python `tensorrt` est fourni par le sdist tensorrt-cu12 ; on le
+# recrée simplement au-dessus des bindings pour éviter le pip-inside-pip.
+RUN mkdir -p /opt/conda/lib/python3.11/site-packages/tensorrt \
+    && printf 'from tensorrt_bindings import *\nfrom tensorrt_bindings import __version__\n' \
+       > /opt/conda/lib/python3.11/site-packages/tensorrt/__init__.py
 
 # torch.compile / Inductor a besoin d'un compilateur C++ et de ninja.
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -57,6 +83,12 @@ RUN echo "/opt/conda/lib/python3.11/site-packages/tensorrt_libs" \
 
 # Entrypoint : ouvre les compteurs RAPL en root, puis abandonne les privilèges
 # pour que tous les fichiers du workspace restent possédés par l'utilisateur hôte.
+# Certains composants (torch.compile/Inductor, Triton) appellent getpwuid().
+# L'UID 1000 doit donc exister dans /etc/passwd, même si l'entrypoint drop
+# vers cet UID.
+RUN if ! getent group 1000 >/dev/null; then groupadd -g 1000 tp; fi \
+    && if ! getent passwd 1000 >/dev/null; then useradd -u 1000 -g 1000 -m -s /bin/bash tp; fi
+
 COPY docker/tp-entrypoint.py /usr/local/bin/tp-entrypoint
 COPY docker/tp-rapl-daemon.py /usr/local/bin/tp-rapl-daemon
 RUN chmod +x /usr/local/bin/tp-entrypoint /usr/local/bin/tp-rapl-daemon
