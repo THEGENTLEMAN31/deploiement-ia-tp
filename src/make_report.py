@@ -572,9 +572,9 @@ def main() -> None:
     <div class="sub">Rapport technique — TP de déploiement IA</div>
     <div class="meta">
       Modèle ResNet-18 · CIFAR-10 · ONNX · OpenVINO · TensorRT · torch.compile<br><br>
-      Auteur : THEGENTLEMAN31<br>
+      Auteur : BONGA TCHINGA Jose<br>
       Date : {today}<br>
-      Dépôt : <code>deploiement-ia-tp</code>
+      Dépôt : <code>github.com/THEGENTLEMAN31/deploiement-ia-tp</code>
     </div>
   </div>
 </div>
@@ -925,7 +925,7 @@ sélectionner un runtime GPU. La cellule de setup installe les dépendances si
 nécessaire et clone le dépôt lorsque <code>TP_REPO_URL</code> est défini :
 </p>
 <pre>import os
-os.environ["TP_REPO_URL"] = "https://github.com/&lt;votre-compte&gt;/deploiement-ia-tp.git"
+os.environ["TP_REPO_URL"] = "https://github.com/THEGENTLEMAN31/deploiement-ia-tp.git"
 # puis exécuter la cellule de setup du notebook</pre>
 
 <h2 id="annexes" class="newpage">9. Annexes</h2>

@@ -1,5 +1,8 @@
 # TP Déploiement IA — Quatre pipelines CPU et GPU
 
+**Auteur : BONGA TCHINGA Jose** — dépôt :
+`git@github.com:THEGENTLEMAN31/deploiement-ia-tp.git`
+
 Comparaison expérimentale de quatre chaînes de déploiement d'un modèle
 **ResNet-18** sur **CIFAR-10** :
 
@@ -174,7 +177,7 @@ variable d'environnement `TP_REPO_URL` avant d'exécuter la cellule de setup :
 
 ```python
 import os
-os.environ["TP_REPO_URL"] = "https://github.com/<votre-compte>/deploiement-ia-tp.git"
+os.environ["TP_REPO_URL"] = "https://github.com/THEGENTLEMAN31/deploiement-ia-tp.git"
 ```
 
 La cellule de setup clone le dépôt si nécessaire, se place à sa racine et importe
